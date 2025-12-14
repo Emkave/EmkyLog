@@ -4,5 +4,4 @@ project(EmkyLog)
 set(CMAKE_CXX_STANDARD 23)
 
 add_executable(EmkyLog main.cpp
-        EmkyLog.cpp
         EmkyLog.h)

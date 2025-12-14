@@ -23,29 +23,97 @@ public:
     emkylog() = default;
 
     static unsigned short init();
+    static unsigned short Init();
     static unsigned short set_log_path(std::string_view);
+    static unsigned short SetLogPath(std::string_view);
     static unsigned short set_error_log_path(std::string_view);
+    static unsigned short SetErrorLogPath(std::string_view);
     static unsigned short set_log_filename(std::string_view) noexcept;
+    static unsigned short SetLogFilename(std::string_view) noexcept;
     static unsigned short set_error_log_filename(std::string_view) noexcept;
+    static unsigned short SetErrorLogFilename(std::string_view) noexcept;
     static std::string_view get_log_path() noexcept;
+    static std::string_view GetLogPath() noexcept;
     static std::string_view get_error_log_path() noexcept;
+    static std::string_view GetErrorLogPath() noexcept;
     static std::string_view get_log_filename() noexcept;
+    static std::string_view GetLogFilename() noexcept;
     static std::string_view get_error_log_filename() noexcept;
+    static std::string_view GetErrorLogFilename() noexcept;
     static unsigned short log(std::string_view);
+    static unsigned short Log(std::string_view);
     static unsigned short log_error(std::string_view);
+    static unsigned short LogError(std::string_view);
     static unsigned short open_logger();
+    static unsigned short OpenLogger();
     static unsigned short open_error_logger();
+    static unsigned short OpenErrorLogger();
     static unsigned short close_logger();
+    static unsigned short CloseLogger();
     static unsigned short close_error_logger();
+    static unsigned short CloseErrorLogger();
     static bool initiated() noexcept;
+    static bool Initiated() noexcept;
+
+private:
+    enum class level {
+        info, error
+    };
+
+    class line {
+        std::string string;
+        level lvl;
+
+        static unsigned short flush(const level lvl, const std::string_view str) {
+            return (lvl == level::info) ? emkylog::log(str) : emkylog::log_error(str);
+        }
+
+    public:
+        explicit line(const level lvl) : lvl(lvl) {}
+        ~line() noexcept {
+            (void)flush(this->lvl, this->string);
+        }
+
+        line & operator << (const std::string_view s) {
+            this->string.append(s);
+            return *this;
+        }
+
+        line & operator << (const char * s) {
+            return *this << std::string_view{s};
+        }
+    };
+
+    struct stream {
+        level lvl;
+        line operator << (const std::string_view s) const {
+            line l{lvl};
+            l << s;
+            return l;
+        }
+
+        line operator << (const char * s) const {
+            return *this << std::string_view(s);
+        }
+
+        template <typename T> line operator << (T && v) const {
+            line l(lvl);
+            l << std::forward<T>(v);
+            return l;
+        }
+    };
+
+public:
+    static constexpr stream loginfo{level::info};
+    static constexpr stream logerror{level::error};
 };
 
-inline std::string emkylog::log_path = (std::filesystem::current_path() / "emkylog").string();
-inline std::string emkylog::error_log_path = (std::filesystem::current_path() / "emkylog").string();
+inline std::string emkylog::log_path = ".";
+inline std::string emkylog::error_log_path = ".";
 inline std::string emkylog::log_filename = "emkylog.txt";
 inline std::string emkylog::error_log_filename = "emkyerrlog.txt";
-inline std::ofstream emkylog::log_stream;
-inline std::ofstream emkylog::error_log_stream;
+inline std::ofstream emkylog::log_stream = {};
+inline std::ofstream emkylog::error_log_stream = {};
 inline bool emkylog::inited = false;
 
 

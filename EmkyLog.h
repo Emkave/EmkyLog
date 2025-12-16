@@ -3,6 +3,8 @@
 #include <format>
 #include <chrono>
 #include <thread>
+#include <system_error>
+#include <type_traits>
 #include <print>
 #include <expected>
 #include <filesystem>
@@ -11,6 +13,7 @@
 
 
 class emkylog {
+
     static std::string log_path;
     static std::string error_log_path;
     static std::string log_filename;
@@ -21,6 +24,7 @@ class emkylog {
     static bool auto_newline;
 
 public:
+
     emkylog() = default;
 
     static unsigned short init();
@@ -45,10 +49,14 @@ public:
     static std::string_view GetErrorLogFilename() noexcept;
     static bool get_auto_new_line() noexcept;
     static bool GetAutoNewLine() noexcept;
-    static unsigned short log(std::string_view, bool new_line=emkylog::auto_newline);
-    static unsigned short Log(std::string_view, bool new_line=emkylog::auto_newline);
-    static unsigned short log_error(std::string_view, bool new_line=emkylog::auto_newline);
-    static unsigned short LogError(std::string_view, bool new_line=emkylog::auto_newline);
+    static unsigned short log(std::string_view, bool=emkylog::auto_newline);
+    template<typename...Args>  static unsigned short log(Args&&...);
+    static unsigned short Log(std::string_view, bool=emkylog::auto_newline);
+    template<typename...Args> static unsigned short Log(Args&&...args);
+    static unsigned short log_error(std::string_view, bool=emkylog::auto_newline);
+    template<typename...Args> static unsigned short log_error(Args&&...args);
+    static unsigned short LogError(std::string_view, bool=emkylog::auto_newline);
+    template<typename...Args> static unsigned short LogError(Args&&...args);
     static unsigned short open_logger();
     static unsigned short OpenLogger();
     static unsigned short open_error_logger();
@@ -68,44 +76,52 @@ private:
     class line {
         std::string string;
         level lvl;
+        bool auto_flush;
 
-        static unsigned short flush(const level lvl, const std::string_view str) {
-            return (lvl == level::info) ? emkylog::log(str, true) : emkylog::log_error(str, true);
+        static unsigned short flush(const level lvl, const std::string_view str, const bool new_line) {
+            return (lvl == level::info) ? emkylog::log(str, new_line) : emkylog::log_error(str, new_line);
+        }
+
+        template <typename T> void append_to_chars(T v) {
+            char tmp[128];
+            auto [ptr, ec] = std::to_chars(tmp, tmp + sizeof(tmp), v);
+            if (ec == std::errc{}) {
+                this->string.append(tmp, ptr);
+            } else {
+                this->string += "<to_chars_error>";
+            }
         }
 
     public:
-        explicit line(const level lvl) : lvl(lvl) {}
+        explicit line(const level lvl, const bool auto_flush=true) : lvl(lvl), auto_flush(auto_flush) {}
         ~line() noexcept {
-            (void)flush(this->lvl, this->string);
+            if (this->auto_flush) {
+                (void)flush(this->lvl, this->string, true);
+            }
         }
 
-        line & operator << (const std::string_view s) {
-            this->string.append(s);
+        [[nodiscard]] unsigned short flush_now(const bool new_line) const {
+            return flush(this->lvl, this->string, new_line);
+        }
+
+        line & operator << (const std::string_view s) {this->string.append(s); return *this;}
+        line & operator << (const char ch) {this->string.push_back(ch); return *this;}
+        line & operator << (const char * s) {return *this << std::string_view(s);}
+        line & operator << (const bool b) {this->string += (b ? "true" : "false"); return *this;}
+        template <typename T> requires (std::is_integral_v<std::remove_reference_t<T>>)
+        line & operator << (T v) {
+            this->append_to_chars(v);
             return *this;
         }
-
-        line & operator << (const char ch) {
-            this->string.push_back(ch);
+        template <typename T> requires (std::is_floating_point_v<std::remove_reference_t<T>>)
+        line & operator << (T v) {
+            this->append_to_chars(v);
             return *this;
-        }
-
-        line & operator << (const char * s) {
-            return *this << std::string_view(s);
         }
     };
 
     struct stream {
         level lvl;
-        line operator << (const std::string_view s) const {
-            line l(lvl);
-            l << s;
-            return l;
-        }
-
-        line operator << (const char * s) const {
-            return *this << std::string_view(s);
-        }
-
         template <typename T> line operator << (T && v) const {
             line l(lvl);
             l << std::forward<T>(v);
@@ -286,6 +302,21 @@ inline unsigned short emkylog::log(const std::string_view slog, const bool new_l
 }
 
 
+template <typename... Args> unsigned short emkylog::log(Args &&... args) {
+    line l(level::info, false);
+    (l << ... << std::forward<Args>(args));
+    return l.flush_now(emkylog::auto_newline);
+}
+
+
+
+template <typename... Args> unsigned short emkylog::Log(Args &&... args) {
+    line l(level::info, false);
+    (l << ... << std::forward<Args>(args));
+    return l.flush_now(emkylog::auto_newline);
+}
+
+
 inline unsigned short emkylog::log_error(const std::string_view slog, const bool new_line) {
     if (!emkylog::initiated()) {
         if (const unsigned short res = emkylog::init()) {
@@ -305,6 +336,20 @@ inline unsigned short emkylog::log_error(const std::string_view slog, const bool
     emkylog::error_log_stream.flush();
 
     return 0;
+}
+
+
+template <typename... Args> unsigned short emkylog::log_error(Args &&...args) {
+    line l(level::error, false);
+    (l << ... << std::forward<Args>(args));
+    return l.flush_now(emkylog::auto_newline);
+}
+
+
+template <typename... Args> unsigned short emkylog::LogError(Args &&... args) {
+    line l(level::error, false);
+    (l << ... << std::forward<Args>(args));
+    return l.flush_now(emkylog::auto_newline);
 }
 
 

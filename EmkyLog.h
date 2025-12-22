@@ -6,6 +6,7 @@
 #include <system_error>
 #include <type_traits>
 #include <print>
+#include <mutex>
 #include <expected>
 #include <filesystem>
 #include <string>
@@ -13,7 +14,6 @@
 
 
 class emkylog {
-
     static std::string log_path;
     static std::string error_log_path;
     static std::string log_filename;
@@ -22,6 +22,7 @@ class emkylog {
     static std::ofstream error_log_stream;
     static bool inited;
     static bool auto_newline;
+    static std::recursive_mutex mtx;
 
 public:
 
@@ -95,12 +96,14 @@ private:
     public:
         explicit line(const level lvl, const bool auto_flush=true) : lvl(lvl), auto_flush(auto_flush) {}
         ~line() noexcept {
+            std::lock_guard lock (emkylog::mtx);
             if (this->auto_flush) {
                 (void)flush(this->lvl, this->string, true);
             }
         }
 
         [[nodiscard]] unsigned short flush_now(const bool new_line) const {
+            std::lock_guard lock (emkylog::mtx);
             return flush(this->lvl, this->string, new_line);
         }
 
@@ -110,11 +113,13 @@ private:
         line & operator << (const bool b) {this->string += (b ? "true" : "false"); return *this;}
         template <typename T> requires (std::is_integral_v<std::remove_reference_t<T>>)
         line & operator << (T v) {
+            std::lock_guard lock (emkylog::mtx);
             this->append_to_chars(v);
             return *this;
         }
         template <typename T> requires (std::is_floating_point_v<std::remove_reference_t<T>>)
         line & operator << (T v) {
+            std::lock_guard lock (emkylog::mtx);
             this->append_to_chars(v);
             return *this;
         }
@@ -123,6 +128,7 @@ private:
     struct stream {
         level lvl;
         template <typename T> line operator << (T && v) const {
+            std::lock_guard lock (emkylog::mtx);
             line l(lvl);
             l << std::forward<T>(v);
             return l;
@@ -142,27 +148,28 @@ inline std::ofstream emkylog::log_stream = {};
 inline std::ofstream emkylog::error_log_stream = {};
 inline bool emkylog::inited = false;
 inline bool emkylog::auto_newline = true;
+inline std::recursive_mutex emkylog::mtx;
 
-
-inline unsigned short emkylog::Init() {return emkylog::init();}
-inline unsigned short emkylog::SetLogPath(const std::string_view path) {return emkylog::set_log_path(path);}
-inline unsigned short emkylog::SetErrorLogPath(const std::string_view path) {return emkylog::set_error_log_path(path);}
-inline unsigned short emkylog::SetLogFilename(const std::string_view filename) noexcept {return emkylog::set_log_filename(filename);}
-inline unsigned short emkylog::SetErrorLogFilename(const std::string_view filename) noexcept {return emkylog::set_error_log_filename(filename);}
-inline void emkylog::SetAutoNewLine(bool && boolean) noexcept {return emkylog::set_auto_new_line(static_cast<bool&&>(boolean));}
-inline std::string_view emkylog::GetLogPath() noexcept {return emkylog::get_log_path();}
-inline std::string_view emkylog::GetErrorLogPath() noexcept {return emkylog::get_error_log_path();}
-inline std::string_view emkylog::GetLogFilename() noexcept {return emkylog::get_log_filename();}
-inline std::string_view emkylog::GetErrorLogFilename() noexcept {return emkylog::get_error_log_filename();}
-inline bool emkylog::GetAutoNewLine() noexcept {return emkylog::get_auto_new_line();}
-inline unsigned short emkylog::Log(const std::string_view log, const bool new_line) {return emkylog::log(log, new_line);}
-inline unsigned short emkylog::LogError(const std::string_view log, const bool new_line) {return emkylog::log_error(log, new_line);}
-inline unsigned short emkylog::OpenLogger() {return emkylog::open_logger();}
-inline unsigned short emkylog::CloseLogger() {return emkylog::close_logger();}
-inline bool emkylog::Initiated() noexcept {return emkylog::initiated();}
+inline unsigned short emkylog::Init() {std::lock_guard lock (emkylog::mtx); return emkylog::init();}
+inline unsigned short emkylog::SetLogPath(const std::string_view path) {std::lock_guard lock (emkylog::mtx); return emkylog::set_log_path(path);}
+inline unsigned short emkylog::SetErrorLogPath(const std::string_view path) {std::lock_guard lock (emkylog::mtx); return emkylog::set_error_log_path(path);}
+inline unsigned short emkylog::SetLogFilename(const std::string_view filename) noexcept {std::lock_guard lock (emkylog::mtx); return emkylog::set_log_filename(filename);}
+inline unsigned short emkylog::SetErrorLogFilename(const std::string_view filename) noexcept {std::lock_guard lock (emkylog::mtx); return emkylog::set_error_log_filename(filename);}
+inline void emkylog::SetAutoNewLine(bool && boolean) noexcept {std::lock_guard lock (emkylog::mtx); return emkylog::set_auto_new_line(static_cast<bool&&>(boolean));}
+inline std::string_view emkylog::GetLogPath() noexcept {std::lock_guard lock (emkylog::mtx); return emkylog::get_log_path();}
+inline std::string_view emkylog::GetErrorLogPath() noexcept {std::lock_guard lock (emkylog::mtx); return emkylog::get_error_log_path();}
+inline std::string_view emkylog::GetLogFilename() noexcept {std::lock_guard lock (emkylog::mtx); return emkylog::get_log_filename();}
+inline std::string_view emkylog::GetErrorLogFilename() noexcept {std::lock_guard lock (emkylog::mtx); return emkylog::get_error_log_filename();}
+inline bool emkylog::GetAutoNewLine() noexcept {std::lock_guard lock (emkylog::mtx); return emkylog::get_auto_new_line();}
+inline unsigned short emkylog::Log(const std::string_view log, const bool new_line) {std::lock_guard lock (emkylog::mtx); return emkylog::log(log, new_line);}
+inline unsigned short emkylog::LogError(const std::string_view log, const bool new_line) {std::lock_guard lock (emkylog::mtx); return emkylog::log_error(log, new_line);}
+inline unsigned short emkylog::OpenLogger() {std::lock_guard lock (emkylog::mtx); return emkylog::open_logger();}
+inline unsigned short emkylog::CloseLogger() {std::lock_guard lock (emkylog::mtx); return emkylog::close_logger();}
+inline bool emkylog::Initiated() noexcept {std::lock_guard lock (emkylog::mtx); return emkylog::initiated();}
 
 
 inline unsigned short emkylog::init() {
+    std::lock_guard lock (emkylog::mtx);
     unsigned short res = 00000;
     res |= emkylog::set_log_path(emkylog::log_path);
     res |= emkylog::set_error_log_path(emkylog::error_log_path);
@@ -179,6 +186,7 @@ inline unsigned short emkylog::init() {
 
 
 inline unsigned short emkylog::set_log_path(const std::string_view path) {
+    std::lock_guard lock (emkylog::mtx);
     if (emkylog::log_stream.is_open()) {
         return 1111;
     }
@@ -197,6 +205,7 @@ inline unsigned short emkylog::set_log_path(const std::string_view path) {
 
 
 inline unsigned short emkylog::set_error_log_path(const std::string_view path) {
+    std::lock_guard lock (emkylog::mtx);
     if (emkylog::error_log_stream.is_open()) {
         return 11111;
     }
@@ -215,6 +224,7 @@ inline unsigned short emkylog::set_error_log_path(const std::string_view path) {
 
 
 inline unsigned short emkylog::set_log_filename(const std::string_view filename) noexcept {
+    std::lock_guard lock (emkylog::mtx);
     if (emkylog::log_stream.is_open()) {
         return 11111;
     }
@@ -233,6 +243,7 @@ inline unsigned short emkylog::set_log_filename(const std::string_view filename)
 
 
 inline unsigned short emkylog::set_error_log_filename(const std::string_view filename) noexcept {
+    std::lock_guard lock (emkylog::mtx);
     if (emkylog::error_log_stream.is_open()) {
         return 11111;
     }
@@ -251,36 +262,43 @@ inline unsigned short emkylog::set_error_log_filename(const std::string_view fil
 
 
 inline void emkylog::set_auto_new_line(bool && boolean) noexcept {
+    std::lock_guard lock (emkylog::mtx);
     emkylog::auto_newline = boolean;
 }
 
 
 inline std::string_view emkylog::get_log_path() noexcept {
+    std::lock_guard lock (emkylog::mtx);
     return emkylog::log_path;
 }
 
 
 inline std::string_view emkylog::get_error_log_path() noexcept {
+    std::lock_guard lock (emkylog::mtx);
     return emkylog::error_log_path;
 }
 
 
 inline std::string_view emkylog::get_log_filename() noexcept {
+    std::lock_guard lock (emkylog::mtx);
     return emkylog::log_filename;
 }
 
 
 inline std::string_view emkylog::get_error_log_filename() noexcept {
+    std::lock_guard lock (emkylog::mtx);
     return emkylog::error_log_filename;
 }
 
 
 inline bool emkylog::get_auto_new_line() noexcept {
+    std::lock_guard lock (emkylog::mtx);
     return emkylog::auto_newline;
 }
 
 
 inline unsigned short emkylog::log(const std::string_view slog, const bool new_line) {
+    std::lock_guard lock (emkylog::mtx);
     if (!emkylog::initiated()) {
         if (const unsigned short res = emkylog::init()) {
             return res;
@@ -303,6 +321,7 @@ inline unsigned short emkylog::log(const std::string_view slog, const bool new_l
 
 
 template <typename... Args> unsigned short emkylog::log(Args &&... args) {
+    std::lock_guard lock (emkylog::mtx);
     line l(level::info, false);
     (l << ... << std::forward<Args>(args));
     return l.flush_now(emkylog::auto_newline);
@@ -311,6 +330,7 @@ template <typename... Args> unsigned short emkylog::log(Args &&... args) {
 
 
 template <typename... Args> unsigned short emkylog::Log(Args &&... args) {
+    std::lock_guard lock (emkylog::mtx);
     line l(level::info, false);
     (l << ... << std::forward<Args>(args));
     return l.flush_now(emkylog::auto_newline);
@@ -318,6 +338,7 @@ template <typename... Args> unsigned short emkylog::Log(Args &&... args) {
 
 
 inline unsigned short emkylog::log_error(const std::string_view slog, const bool new_line) {
+    std::lock_guard lock (emkylog::mtx);
     if (!emkylog::initiated()) {
         if (const unsigned short res = emkylog::init()) {
             return res;
@@ -340,6 +361,7 @@ inline unsigned short emkylog::log_error(const std::string_view slog, const bool
 
 
 template <typename... Args> unsigned short emkylog::log_error(Args &&...args) {
+    std::lock_guard lock (emkylog::mtx);
     line l(level::error, false);
     (l << ... << std::forward<Args>(args));
     return l.flush_now(emkylog::auto_newline);
@@ -347,6 +369,7 @@ template <typename... Args> unsigned short emkylog::log_error(Args &&...args) {
 
 
 template <typename... Args> unsigned short emkylog::LogError(Args &&... args) {
+    std::lock_guard lock (emkylog::mtx);
     line l(level::error, false);
     (l << ... << std::forward<Args>(args));
     return l.flush_now(emkylog::auto_newline);
@@ -354,6 +377,7 @@ template <typename... Args> unsigned short emkylog::LogError(Args &&... args) {
 
 
 inline unsigned short emkylog::open_logger() {
+    std::lock_guard lock (emkylog::mtx);
     if (!emkylog::initiated()) {
         if (const unsigned short res = emkylog::init()) {
             return res;
@@ -374,6 +398,7 @@ inline unsigned short emkylog::open_logger() {
 
 
 inline unsigned short emkylog::open_error_logger() {
+    std::lock_guard lock (emkylog::mtx);
     if (!emkylog::initiated()) {
         if (const unsigned short res = emkylog::init()) {
             return res;
@@ -394,6 +419,7 @@ inline unsigned short emkylog::open_error_logger() {
 
 
 inline unsigned short emkylog::close_logger() {
+    std::lock_guard lock (emkylog::mtx);
     if (!emkylog::log_stream.is_open()) {
         return 11111;
     }
@@ -404,6 +430,7 @@ inline unsigned short emkylog::close_logger() {
 
 
 inline unsigned short emkylog::close_error_logger() {
+    std::lock_guard lock (emkylog::mtx);
     if (!emkylog::error_log_stream.is_open()) {
         return 11111;
     }
@@ -414,6 +441,7 @@ inline unsigned short emkylog::close_error_logger() {
 
 
 inline bool emkylog::initiated() noexcept {
+    std::lock_guard lock (emkylog::mtx);
     return emkylog::inited;
 }
 

@@ -1,5 +1,5 @@
 # EmkyLog
-# Single-Header C++23 Syncrhonized Modern Cross-Platform Multicompiler-Supported Logger
+# Single-Header C++20+ Syncrhonized Modern Cross-Platform Multicompiler-Supported Logger
 
 `emkylog` is a small, header-only logging utility that writes to two files:
 - **info log** (`emkylog.txt`)
@@ -27,7 +27,7 @@ It supports:
 
 ## Requirements
 
-- C++23+
+- C++20+
 
 ---
 

@@ -1,4 +1,4 @@
-# emkylog — single-header C++ logger (WIP)
+# emkylog — Single-Header C++23 Syncrhonized Modern OS-Independent Multicompiler-Supported Logger
 
 `emkylog` is a small, header-only logging utility that writes to two files:
 - **info log** (`emkylog.txt`)

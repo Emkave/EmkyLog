@@ -18,8 +18,19 @@
 #include <fstream>
 
 
-
 class emkylog {
+    enum error_code {
+        NO_ERROR,
+        INIT_FAILED,
+        FILE_CLOSED,
+        FILE_OPENED,
+        CANNOT_OPEN_LOG_FILE,
+        INVALID_FILENAME,
+        FAILED_DIRECTORY_CREATION,
+        CANNOT_OPEN_ERROR_LOG_FILE,
+        FAILED_FILE_CREATION
+    };
+
     static std::string log_path;
     static std::string error_log_path;
     static std::string log_filename;
@@ -37,18 +48,18 @@ public:
 
     emkylog() = default;
 
-    static unsigned short init();
-    static unsigned short Init();
-    static unsigned short set_control(control_s) noexcept;
-    static unsigned short SetControl(const control_s &) noexcept;
-    static unsigned short set_log_path(std::string_view);
-    static unsigned short SetLogPath(std::string_view);
-    static unsigned short set_error_log_path(std::string_view);
-    static unsigned short SetErrorLogPath(std::string_view);
-    static unsigned short set_log_filename(std::string_view) noexcept;
-    static unsigned short SetLogFilename(std::string_view) noexcept;
-    static unsigned short set_error_log_filename(std::string_view) noexcept;
-    static unsigned short SetErrorLogFilename(std::string_view) noexcept;
+    static error_code init();
+    static error_code Init();
+    static error_code set_control(control_s) noexcept;
+    static error_code SetControl(const control_s &) noexcept;
+    static error_code set_log_path(std::string_view);
+    static error_code SetLogPath(std::string_view);
+    static error_code set_error_log_path(std::string_view);
+    static error_code SetErrorLogPath(std::string_view);
+    static error_code set_log_filename(std::string_view) noexcept;
+    static error_code SetLogFilename(std::string_view) noexcept;
+    static error_code set_error_log_filename(std::string_view) noexcept;
+    static error_code SetErrorLogFilename(std::string_view) noexcept;
     static void set_auto_new_line(bool &&) noexcept;
     static void SetAutoNewLine(bool &&) noexcept;
     static control_s get_control() noexcept;
@@ -63,22 +74,22 @@ public:
     static std::string_view GetErrorLogFilename() noexcept;
     static bool get_auto_new_line() noexcept;
     static bool GetAutoNewLine() noexcept;
-    static unsigned short log(std::string_view, const emkylog::control_s & =emkylog::control);
-    template<typename...Args>  static unsigned short log(Args&&...);
-    static unsigned short Log(std::string_view, const emkylog::control_s & =emkylog::control);
-    template<typename...Args> static unsigned short Log(Args&&...args);
-    static unsigned short log_error(std::string_view, const emkylog::control_s & =emkylog::control);
-    template<typename...Args> static unsigned short log_error(Args&&...args);
-    static unsigned short LogError(std::string_view, const emkylog::control_s & =emkylog::control);
-    template<typename...Args> static unsigned short LogError(Args&&...args);
-    static unsigned short open_logger();
-    static unsigned short OpenLogger();
-    static unsigned short open_error_logger();
-    static unsigned short OpenErrorLogger();
-    static unsigned short close_logger();
-    static unsigned short CloseLogger();
-    static unsigned short close_error_logger();
-    static unsigned short CloseErrorLogger();
+    static emkylog::error_code log(std::string_view, const emkylog::control_s & =emkylog::control);
+    template<typename...Args>  static error_code log(Args&&...);
+    static emkylog::error_code Log(std::string_view, const emkylog::control_s & =emkylog::control);
+    template<typename...Args> static error_code Log(Args&&...args);
+    static emkylog::error_code log_error(std::string_view, const emkylog::control_s & =emkylog::control);
+    template<typename...Args> static error_code log_error(Args&&...args);
+    static emkylog::error_code LogError(std::string_view, const emkylog::control_s & =emkylog::control);
+    template<typename...Args> static error_code LogError(Args&&...args);
+    static error_code open_logger();
+    static error_code OpenLogger();
+    static error_code open_error_logger();
+    static error_code OpenErrorLogger();
+    static error_code close_logger();
+    static error_code CloseLogger();
+    static error_code close_error_logger();
+    static error_code CloseErrorLogger();
     static bool initiated() noexcept;
     static bool Initiated() noexcept;
 
@@ -93,7 +104,7 @@ private:
         bool auto_flush;
         control_s ctrl;
 
-        static unsigned short flush(const level lvl, const std::string_view str, const emkylog::control_s & ctrl) {
+        static emkylog::error_code flush(const level lvl, const std::string_view str, const emkylog::control_s & ctrl) {
             return (lvl == level::info) ? emkylog::log(str, ctrl) : emkylog::log_error(str, ctrl);
         }
 
@@ -118,7 +129,7 @@ private:
             (void)flush(this->lvl, this->string, this->ctrl);
         }
 
-        [[nodiscard]] unsigned short flush_now() const {
+        [[nodiscard]] emkylog::error_code flush_now() const {
             std::lock_guard lock (emkylog::mtx);
             return flush(this->lvl, this->string, this->ctrl);
         }
@@ -174,12 +185,12 @@ inline bool emkylog::inited = false;
 inline std::recursive_mutex emkylog::mtx;
 inline emkylog::control_s emkylog::control{std::nullopt, std::nullopt};
 
-inline unsigned short emkylog::Init() {return emkylog::init();}
-inline unsigned short emkylog::SetControl(const emkylog::control_s & control) noexcept {return emkylog::set_control(control);}
-inline unsigned short emkylog::SetLogPath(const std::string_view path) {return emkylog::set_log_path(path);}
-inline unsigned short emkylog::SetErrorLogPath(const std::string_view path) {return emkylog::set_error_log_path(path);}
-inline unsigned short emkylog::SetLogFilename(const std::string_view filename) noexcept {return emkylog::set_log_filename(filename);}
-inline unsigned short emkylog::SetErrorLogFilename(const std::string_view filename) noexcept {return emkylog::set_error_log_filename(filename);}
+inline emkylog::error_code emkylog::Init() {return emkylog::init();}
+inline emkylog::error_code emkylog::SetControl(const emkylog::control_s & control) noexcept {return emkylog::set_control(control);}
+inline emkylog::error_code emkylog::SetLogPath(const std::string_view path) {return emkylog::set_log_path(path);}
+inline emkylog::error_code emkylog::SetErrorLogPath(const std::string_view path) {return emkylog::set_error_log_path(path);}
+inline emkylog::error_code emkylog::SetLogFilename(const std::string_view filename) noexcept {return emkylog::set_log_filename(filename);}
+inline emkylog::error_code emkylog::SetErrorLogFilename(const std::string_view filename) noexcept {return emkylog::set_error_log_filename(filename);}
 inline void emkylog::SetAutoNewLine(bool && boolean) noexcept {return emkylog::set_auto_new_line(static_cast<bool&&>(boolean));}
 inline emkylog::control_s emkylog::GetControl() noexcept {return emkylog::get_control();}
 inline std::string_view emkylog::GetLogPath() noexcept {return emkylog::get_log_path();}
@@ -187,113 +198,112 @@ inline std::string_view emkylog::GetErrorLogPath() noexcept {return emkylog::get
 inline std::string_view emkylog::GetLogFilename() noexcept {return emkylog::get_log_filename();}
 inline std::string_view emkylog::GetErrorLogFilename() noexcept {return emkylog::get_error_log_filename();}
 inline bool emkylog::GetAutoNewLine() noexcept {return emkylog::get_auto_new_line();}
-inline unsigned short emkylog::Log(const std::string_view log, const emkylog::control_s & ctrl) {return emkylog::log(log, ctrl);}
-inline unsigned short emkylog::LogError(const std::string_view log, const emkylog::control_s & ctrl) {return emkylog::log_error(log, ctrl);}
-inline unsigned short emkylog::OpenLogger() {return emkylog::open_logger();}
-inline unsigned short emkylog::CloseLogger() {return emkylog::close_logger();}
+inline emkylog::error_code emkylog::Log(const std::string_view log, const emkylog::control_s & ctrl) {return emkylog::log(log, ctrl);}
+inline emkylog::error_code emkylog::LogError(const std::string_view log, const emkylog::control_s & ctrl) {return emkylog::log_error(log, ctrl);}
+inline emkylog::error_code emkylog::OpenLogger() {return emkylog::open_logger();}
+inline emkylog::error_code emkylog::CloseLogger() {return emkylog::close_logger();}
 inline bool emkylog::Initiated() noexcept {return emkylog::initiated();}
-template <typename... Args> unsigned short emkylog::LogError(Args &&... args) {return emkylog::log_error(std::forward<Args>(args)...);}
-template <typename... Args> unsigned short emkylog::Log(Args &&... args) {return emkylog::log(std::forward<Args>(args)...);}
+template <typename... Args> emkylog::error_code emkylog::LogError(Args &&... args) {return emkylog::log_error(std::forward<Args>(args)...);}
+template <typename... Args> emkylog::error_code emkylog::Log(Args &&... args) {return emkylog::log(std::forward<Args>(args)...);}
 
 
-inline unsigned short emkylog::init() {
+inline emkylog::error_code emkylog::init() {
     std::lock_guard lock (emkylog::mtx);
-    unsigned short res = 00000;
-    res |= emkylog::set_log_path(emkylog::log_path);
-    res |= emkylog::set_error_log_path(emkylog::error_log_path);
-    res |= emkylog::set_log_filename(emkylog::log_filename);
-    res |= emkylog::set_error_log_filename(emkylog::error_log_filename);
+    emkylog::error_code res = emkylog::set_log_path(emkylog::log_path);
+    res = emkylog::set_error_log_path(emkylog::error_log_path);
+    res = emkylog::set_log_filename(emkylog::log_filename);
+    res = emkylog::set_error_log_filename(emkylog::error_log_filename);
 
     if (res) {
-        return res;
+        return INIT_FAILED;
     }
     emkylog::inited = true;
 
-    return 0;
+    return NO_ERROR;
 }
 
 
-inline unsigned short emkylog::set_control(control_s control) noexcept {
+inline emkylog::error_code emkylog::set_control(control_s control) noexcept {
     std::lock_guard lock (emkylog::mtx);
     emkylog::control = std::move(control);
-    return 0;
+    return NO_ERROR;
 }
 
 
 
-inline unsigned short emkylog::set_log_path(const std::string_view path) {
+inline emkylog::error_code emkylog::set_log_path(const std::string_view path) {
     std::lock_guard lock (emkylog::mtx);
     if (emkylog::log_stream.is_open()) {
-        return 1111;
+        return FILE_OPENED;
     }
 
     std::error_code ec;
     std::filesystem::create_directories(path, ec);
 
     if (ec) {
-        return 11111;
+        return FAILED_DIRECTORY_CREATION;
     }
 
     emkylog::log_path = path;
 
-    return 0;
+    return NO_ERROR;
 }
 
 
-inline unsigned short emkylog::set_error_log_path(const std::string_view path) {
+inline emkylog::error_code emkylog::set_error_log_path(const std::string_view path) {
     std::lock_guard lock (emkylog::mtx);
     if (emkylog::error_log_stream.is_open()) {
-        return 11111;
+        return FILE_OPENED;
     }
 
     std::error_code ec;
     std::filesystem::create_directories(path, ec);
 
     if (ec) {
-        return 11111;
+        return FAILED_DIRECTORY_CREATION;
     }
 
     emkylog::error_log_path = path;
 
-    return 0;
+    return NO_ERROR;
 }
 
 
-inline unsigned short emkylog::set_log_filename(const std::string_view filename) noexcept {
+inline emkylog::error_code emkylog::set_log_filename(const std::string_view filename) noexcept {
     std::lock_guard lock (emkylog::mtx);
     if (emkylog::log_stream.is_open()) {
-        return 11111;
+        return FILE_OPENED;
     }
 
     if (filename.empty()) {
-        return 11111;
+        return INVALID_FILENAME;
     }
 
     {if (const std::ofstream check (std::filesystem::path(emkylog::log_path) / filename, std::ios::app); !check) {
-        return 11111;
+        return FAILED_FILE_CREATION;
     }}
     emkylog::log_filename = filename;
 
-    return 0;
+    return NO_ERROR;
 }
 
 
-inline unsigned short emkylog::set_error_log_filename(const std::string_view filename) noexcept {
+inline emkylog::error_code emkylog::set_error_log_filename(const std::string_view filename) noexcept {
     std::lock_guard lock (emkylog::mtx);
     if (emkylog::error_log_stream.is_open()) {
-        return 11111;
+        return FILE_OPENED;
     }
 
     if (filename.empty()) {
-        return 11111;
+        return INVALID_FILENAME;
     }
 
     {if (const std::ofstream check (std::filesystem::path(emkylog::error_log_path) / filename, std::ios::app); !check) {
-        return 11111;
+        return FAILED_FILE_CREATION;
     }}
     emkylog::error_log_filename = filename;
 
-    return 0;
+    return NO_ERROR;
 }
 
 
@@ -339,10 +349,10 @@ inline bool emkylog::get_auto_new_line() noexcept {
 }
 
 
-inline unsigned short emkylog::log(const std::string_view slog, const emkylog::control_s & ctrl) {
+inline emkylog::error_code emkylog::log(const std::string_view slog, const emkylog::control_s & ctrl) {
     std::lock_guard lock (emkylog::mtx);
     if (!emkylog::initiated()) {
-        if (const unsigned short res = emkylog::init()) {
+        if (const error_code res = emkylog::init()) {
             return res;
         }
     }
@@ -351,7 +361,7 @@ inline unsigned short emkylog::log(const std::string_view slog, const emkylog::c
         emkylog::log_stream.open(std::filesystem::path(emkylog::log_path) / emkylog::log_filename, std::ios::app);
 
         if (!emkylog::log_stream.is_open()) {
-            return 11111;
+            return FILE_CLOSED;
         }
     }
 
@@ -359,11 +369,11 @@ inline unsigned short emkylog::log(const std::string_view slog, const emkylog::c
     emkylog::log_stream << (ctrl.newline.value_or(false) ? "\n" : "");
     emkylog::log_stream.flush();
 
-    return 0;
+    return NO_ERROR;
 }
 
 
-template <typename... Args> unsigned short emkylog::log(Args &&... args) {
+template <typename... Args> emkylog::error_code emkylog::log(Args &&... args) {
     std::lock_guard lock (emkylog::mtx);
     using last_t = std::remove_cvref_t<emkylog::control_type_t<Args...>>;
 
@@ -383,10 +393,10 @@ template <typename... Args> unsigned short emkylog::log(Args &&... args) {
 }
 
 
-inline unsigned short emkylog::log_error(const std::string_view slog, const control_s & ctrl) {
+inline emkylog::error_code emkylog::log_error(const std::string_view slog, const control_s & ctrl) {
     std::lock_guard lock (emkylog::mtx);
     if (!emkylog::initiated()) {
-        if (const unsigned short res = emkylog::init()) {
+        if (const emkylog::error_code res = emkylog::init()) {
             return res;
         }
     }
@@ -395,7 +405,7 @@ inline unsigned short emkylog::log_error(const std::string_view slog, const cont
         emkylog::error_log_stream.open(std::filesystem::path(emkylog::error_log_path) / emkylog::error_log_filename, std::ios::app);
 
         if (!emkylog::error_log_stream.is_open()) {
-            return 11111;
+            return FILE_CLOSED;
         }
     }
 
@@ -403,11 +413,11 @@ inline unsigned short emkylog::log_error(const std::string_view slog, const cont
     emkylog::log_stream << (ctrl.newline.value_or(false) ? "\n" : "");
     emkylog::error_log_stream.flush();
 
-    return 0;
+    return NO_ERROR;
 }
 
 
-template <typename... Args> unsigned short emkylog::log_error(Args &&...args) {
+template <typename... Args> emkylog::error_code emkylog::log_error(Args &&...args) {
     std::lock_guard lock (emkylog::mtx);
     using last_t = std::remove_cvref_t<emkylog::control_type_t<Args...>>;
 
@@ -427,67 +437,67 @@ template <typename... Args> unsigned short emkylog::log_error(Args &&...args) {
 }
 
 
-inline unsigned short emkylog::open_logger() {
+inline emkylog::error_code emkylog::open_logger() {
     std::lock_guard lock (emkylog::mtx);
     if (!emkylog::initiated()) {
-        if (const unsigned short res = emkylog::init()) {
+        if (const emkylog::error_code res = emkylog::init()) {
             return res;
         }
     }
 
     if (emkylog::log_stream.is_open()) {
-        return 0;
+        return FILE_OPENED;
     }
 
     emkylog::log_stream.open(std::filesystem::path(emkylog::log_path) / emkylog::log_filename, std::ios::app);
 
     if (!emkylog::log_stream.is_open()) {
-        return 11111;
+        return FILE_CLOSED;
     }
-    return 0;
+    return NO_ERROR;
 }
 
 
-inline unsigned short emkylog::open_error_logger() {
+inline emkylog::error_code emkylog::open_error_logger() {
     std::lock_guard lock (emkylog::mtx);
     if (!emkylog::initiated()) {
-        if (const unsigned short res = emkylog::init()) {
+        if (const emkylog::error_code res = emkylog::init()) {
             return res;
         }
     }
 
     if (emkylog::error_log_stream.is_open()) {
-        return 0;
+        return FILE_OPENED;
     }
 
     emkylog::error_log_stream.open(std::filesystem::path(emkylog::error_log_path) / emkylog::error_log_filename, std::ios::app);
 
     if (!emkylog::error_log_stream.is_open()) {
-        return 11111;
+        return FILE_CLOSED;
     }
-    return 0;
+    return NO_ERROR;
 }
 
 
-inline unsigned short emkylog::close_logger() {
+inline emkylog::error_code emkylog::close_logger() {
     std::lock_guard lock (emkylog::mtx);
     if (!emkylog::log_stream.is_open()) {
-        return 11111;
+        return FILE_CLOSED;
     }
 
     emkylog::log_stream.close();
-    return 0;
+    return NO_ERROR;
 }
 
 
-inline unsigned short emkylog::close_error_logger() {
+inline emkylog::error_code emkylog::close_error_logger() {
     std::lock_guard lock (emkylog::mtx);
     if (!emkylog::error_log_stream.is_open()) {
-        return 11111;
+        return FILE_CLOSED;
     }
 
     emkylog::error_log_stream.close();
-    return 0;
+    return NO_ERROR;
 }
 
 

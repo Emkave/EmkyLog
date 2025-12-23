@@ -10,7 +10,6 @@ It supports:
 - an `operator<<` stream-like interface: `emkylog::loginfo << "Hello " << 123;`
 - a basic **control** struct (currently mainly for auto-newline)
 
-> Status: your code already works as a usable prototype, but there are a couple of important notes/bugs listed in **Known issues / TODO**.
 
 ---
 

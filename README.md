@@ -26,9 +26,7 @@ It supports:
 
 ## Requirements
 
-- C++23+ (you use concepts/requires and other modern headers)
-- `<filesystem>` for default log directory
-- Standard library support for `std::to_chars` on floats (most modern toolchains do, but it’s worth noting)
+- C++23+
 
 ---
 

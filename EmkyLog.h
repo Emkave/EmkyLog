@@ -27,7 +27,6 @@ class emkylog {
     static std::ofstream log_stream;
     static std::ofstream error_log_stream;
     static bool inited;
-    static bool auto_newline;
     static std::recursive_mutex mtx;
 
 public:
@@ -128,6 +127,8 @@ private:
         line & operator << (const char ch) {this->string.push_back(ch); return *this;}
         line & operator << (const char * s) {return *this << std::string_view(s);}
         line & operator << (const bool b) {this->string += (b ? "true" : "false"); return *this;}
+        line & operator << (const emkylog::control_s & ctrl) {this->ctrl = ctrl; return *this;}
+
         template <typename T> requires (std::is_integral_v<std::remove_reference_t<T>>)
         line & operator << (T v) {
             this->append_to_chars(v);
@@ -170,7 +171,6 @@ inline std::string emkylog::error_log_filename = "emkyerrlog.txt";
 inline std::ofstream emkylog::log_stream = {};
 inline std::ofstream emkylog::error_log_stream = {};
 inline bool emkylog::inited = false;
-inline bool emkylog::auto_newline = true;
 inline std::recursive_mutex emkylog::mtx;
 inline emkylog::control_s emkylog::control{std::nullopt, std::nullopt};
 
@@ -299,7 +299,7 @@ inline unsigned short emkylog::set_error_log_filename(const std::string_view fil
 
 inline void emkylog::set_auto_new_line(bool && boolean) noexcept {
     std::lock_guard lock (emkylog::mtx);
-    emkylog::auto_newline = boolean;
+    emkylog::control.newline = boolean;
 }
 
 
@@ -335,7 +335,7 @@ inline std::string_view emkylog::get_error_log_filename() noexcept {
 
 inline bool emkylog::get_auto_new_line() noexcept {
     std::lock_guard lock (emkylog::mtx);
-    return emkylog::auto_newline;
+    return emkylog::control.newline.value_or(false);
 }
 
 

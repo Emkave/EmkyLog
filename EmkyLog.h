@@ -3,11 +3,15 @@
 #include <format>
 #include <chrono>
 #include <thread>
+#include <source_location>
 #include <system_error>
+#include <functional>
 #include <type_traits>
 #include <tuple>
 #include <utility>
+#include <thread>
 #include <optional>
+#include <chrono>
 #include <charconv>
 #include <string_view>
 #include <mutex>
@@ -123,7 +127,6 @@ private:
             if (!this->auto_flush) {
                 return;
             }
-            std::lock_guard lock (emkylog::mtx);
             (void)flush(this->lvl, this->string, this->ctrl);
         }
 
@@ -168,9 +171,50 @@ private:
 
     static control_s control;
     static control_s default_control() {return {{}, std::nullopt};}
+
 public:
     static constexpr stream loginfo {level::info};
     static constexpr stream logerror {level::error};
+
+private:
+    enum phase {enter, exit, exception};
+
+    struct event {
+        std::string_view name;
+        phase ph;
+        std::source_location loc;
+        std::thread::id thread_id;
+        std::chrono::nanoseconds duration {};
+        std::string_view what {};
+    };
+
+    template <typename F> class observer {
+        std::string_view name_;
+        std::source_location loc_;
+        F f_;
+
+        template <typename Self, typename...Args> static decltype(auto) call_impl(Self&&self, Args&&...args);
+
+    public:
+        constexpr observer(const std::string_view name, const std::source_location loc, F f) : name_(name), loc_(loc), f_(std::move(f)) {}
+        template <typename...Args> decltype(auto) operator()(Args&&...args) & {
+            return call_impl(*this, std::forward<Args>(args)...);
+        }
+
+        template <typename...Args> decltype(auto) operator()(Args&&...args) const & {
+            return call_impl(*this, std::forward<Args>(args)...);
+        }
+
+        template <typename...Args> decltype(auto) operator()(Args&&...args) && {
+            return call_impl(std::move(*this), std::forward<Args>(args)...);
+        }
+    };
+
+    static void log_event(const event & e);
+
+public:
+    template <typename F> static constexpr auto observe(std::string_view, F&&, std::source_location=std::source_location::current());
+    template <typename F> static constexpr auto observe(F&&, std::source_location=std::source_location::current());
 };
 
 inline std::string emkylog::log_path = (std::filesystem::current_path() / "emkylog").string();
@@ -207,12 +251,8 @@ template <typename... Args> emkylog::error_code emkylog::Log(Args &&... args) {r
 
 inline emkylog::error_code emkylog::init() {
     std::lock_guard lock (emkylog::mtx);
-    emkylog::error_code res = emkylog::set_log_path(emkylog::log_path);
-    res = emkylog::set_error_log_path(emkylog::error_log_path);
-    res = emkylog::set_log_filename(emkylog::log_filename);
-    res = emkylog::set_error_log_filename(emkylog::error_log_filename);
 
-    if (res) {
+    if (emkylog::set_log_path(emkylog::log_path) || emkylog::set_error_log_path(emkylog::error_log_path) || emkylog::set_log_filename(emkylog::log_filename) || emkylog::set_error_log_filename(emkylog::error_log_filename)) {
         return INIT_FAILED;
     }
     emkylog::inited = true;
@@ -226,7 +266,6 @@ inline emkylog::error_code emkylog::set_control(control_s control) noexcept {
     emkylog::control = std::move(control);
     return NO_ERROR;
 }
-
 
 
 inline emkylog::error_code emkylog::set_log_path(const std::string_view path) {
@@ -507,6 +546,77 @@ inline bool emkylog::initiated() noexcept {
 
 template<typename Tuple, size_t... Is> inline void emkylog::stream_prefix(line & l, Tuple && t, std::index_sequence<Is...>) {
     (l << ... << std::get<Is>(std::forward<Tuple>(t)));
+}
+
+
+template<typename F> constexpr auto emkylog::observe(std::string_view name, F && f, std::source_location loc) {
+    return emkylog::observer<std::decay_t<F>>{name, loc, std::forward<F>(f)};
+}
+
+
+template<typename F> constexpr auto emkylog::observe(F && f, std::source_location loc) {
+    return emkylog::observe(loc.function_name(), std::forward<F>(f), loc);
+}
+
+
+inline void emkylog::log_event(const event &e) {
+    // TODO: describe the log event
+}
+
+
+template<typename F> template<typename Self, typename... Args> decltype(auto) emkylog::observer<F>::call_impl(Self && self, Args &&... args) {
+    using clock = std::chrono::steady_clock;
+    const auto start = clock::now();
+    emkylog::log_event(event {
+        .name = self.name_,
+        .ph = phase::enter,
+        .loc = self.loc_,
+        .thread_id = std::this_thread::get_id(),
+        .duration = {}
+    });
+
+    try {
+        using R = std::invoke_result_t<decltype((self.f_)), Args...>;
+
+        if constexpr (std::is_void_v<R>) {
+            std::invoke(self.f_, std::forward<Args>(args)...);
+
+            const auto end = clock::now();
+            emkylog::log_event(event{
+                .name = self.name_,
+                .ph = phase::exit,
+                .loc = self.loc_,
+                .thread_id = std::this_thread::get_id(),
+                .duration = end - start
+            });
+
+            return;
+        } else {
+            R result = std::invoke(self.f_, std::forward<Args>(args)...);
+
+            const auto end = clock::now();
+            emkylog::log_event(event{
+                .name = self.name_,
+                .ph = phase::exit,
+                .loc = self.loc_,
+                .thread_id = std::this_thread::get_id(),
+                .duration = end - start
+            });
+
+            return result;
+        }
+    } catch (...) {
+        const auto end = clock::now();
+        emkylog::log_event(event{
+            .name = self.name_,
+            .ph = phase::exception,
+            .loc = self.loc_,
+            .thread_id = std::this_thread::get_id(),
+            .duration = end - start,
+            .what = "unknown exception"
+        });
+        throw;
+    }
 }
 
 

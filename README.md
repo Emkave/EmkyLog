@@ -18,10 +18,11 @@ It supports:
 
 - **Header-only** (just include `EMKYLOG_H`)
 - **Two separate outputs**: info + error files
-- **Thread-safe** via a single global `std::recursive_mutex`
+- **Thread-safe** via a single mutex `std::recursive_mutex`
 - **Auto-init** on first log call (if you don’t call `Init()` manually)
 - **Fast numeric formatting** using `std::to_chars` for ints/floats
 - **Control object** can be passed as the **last argument** to variadic logging
+- **Observers** allow the logger to observe any functions/anonymous functions/methods and log on execution
 
 ---
 

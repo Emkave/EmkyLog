@@ -44,7 +44,7 @@ class emkylog {
 
 public:
     struct control_s {
-        std::optional<std::string> string;
+        std::optional<std::string> regex;
         std::optional<bool> newline;
     };
 
@@ -77,13 +77,13 @@ public:
     static bool get_auto_new_line() noexcept;
     static bool GetAutoNewLine() noexcept;
     static emkylog::error_code log(std::string_view, const emkylog::control_s & =emkylog::control);
-    template<typename...Args>  static error_code log(Args&&...);
+    template<typename...Args> static error_code log(Args&&...);
     static emkylog::error_code Log(std::string_view, const emkylog::control_s & =emkylog::control);
-    template<typename...Args> static error_code Log(Args&&...args);
+    template<typename...Args> static error_code Log(Args&&...);
     static emkylog::error_code log_error(std::string_view, const emkylog::control_s & =emkylog::control);
-    template<typename...Args> static error_code log_error(Args&&...args);
+    template<typename...Args> static error_code log_error(Args&&...);
     static emkylog::error_code LogError(std::string_view, const emkylog::control_s & =emkylog::control);
-    template<typename...Args> static error_code LogError(Args&&...args);
+    template<typename...Args> static error_code LogError(Args&&...);
     static error_code open_logger();
     static error_code OpenLogger();
     static error_code open_error_logger();
@@ -104,6 +104,7 @@ private:
         std::string string;
         level lvl;
         bool auto_flush;
+        bool suppress_final_newline = false;
         control_s ctrl;
 
         static emkylog::error_code flush(const level lvl, const std::string_view str, const emkylog::control_s & ctrl) {
@@ -127,6 +128,9 @@ private:
             if (!this->auto_flush) {
                 return;
             }
+
+            this->ctrl.newline = !this->suppress_final_newline;
+
             (void)flush(this->lvl, this->string, this->ctrl);
         }
 
@@ -140,17 +144,20 @@ private:
         line & operator << (const char * s) {return *this << std::string_view(s);}
         line & operator << (const bool b) {this->string += (b ? "true" : "false"); return *this;}
         line & operator << (const emkylog::control_s & ctrl) {this->ctrl = ctrl; return *this;}
+        line & operator << (const std::thread::id tid) {return *this << std::hash<std::thread::id>{}(tid);}
 
-        template <typename T> requires (std::is_integral_v<std::remove_reference_t<T>>)
-        line & operator << (T v) {
-            this->append_to_chars(v);
-            return *this;
-        }
-        template <typename T> requires (std::is_floating_point_v<std::remove_reference_t<T>>)
-        line & operator << (T v) {
-            this->append_to_chars(v);
-            return *this;
-        }
+        template <typename T> requires (std::is_integral_v<std::remove_reference_t<T>> || std::is_floating_point_v<std::remove_reference_t<T>>)
+        line & operator << (T v) {this->append_to_chars(v); return *this;}
+
+        line & operator < (const std::string_view s) {this->suppress_final_newline = true; return *this << s;}
+        line & operator < (const char ch) {this->suppress_final_newline = true; return *this << ch;}
+        line & operator < (const char * s) {this->suppress_final_newline = true; return *this << s;}
+        line & operator < (const bool b) {this->suppress_final_newline = true; return *this << b;}
+        line & operator < (const std::thread::id tid) {this->suppress_final_newline = true; return *this << tid;}
+
+        template <typename T> requires (std::is_integral_v<std::remove_reference_t<T>> || std::is_floating_point_v<std::remove_reference_t<T>>)
+        line & operator < (T v) { this->suppress_final_newline = true;return *this << v;}
+
     };
 
     struct stream {
@@ -184,7 +191,7 @@ private:
         phase ph;
         std::source_location loc;
         std::thread::id thread_id;
-        std::chrono::nanoseconds duration {};
+        std::chrono::milliseconds duration {};
         std::string_view what {};
     };
 
@@ -559,15 +566,31 @@ template<typename F> constexpr auto emkylog::observe(F && f, std::source_locatio
 }
 
 
-inline void emkylog::log_event(const event &e) {
-    // TODO: describe the log event
+inline void emkylog::log_event(const event & e) {
+    emkylog::loginfo << "[Observer Log] Thread ID: " << e.thread_id << " : at " << e.loc.function_name() << " Status:  ";
+
+    switch (e.ph) {
+        case emkylog::enter:
+            emkylog::loginfo << " ENTERED.";
+            break;
+
+        case emkylog::exit:
+            emkylog::loginfo << " EXITED.";
+            break;
+
+        case emkylog::exception:
+            emkylog::loginfo << " THROWED.";
+            break;
+    }
+
+    emkylog::loginfo << " " << e.duration.count() << "ms.\n";
 }
 
 
 template<typename F> template<typename Self, typename... Args> decltype(auto) emkylog::observer<F>::call_impl(Self && self, Args &&... args) {
     using clock = std::chrono::steady_clock;
     const auto start = clock::now();
-    emkylog::log_event(event {
+    emkylog::log_event(event{
         .name = self.name_,
         .ph = phase::enter,
         .loc = self.loc_,
@@ -587,10 +610,8 @@ template<typename F> template<typename Self, typename... Args> decltype(auto) em
                 .ph = phase::exit,
                 .loc = self.loc_,
                 .thread_id = std::this_thread::get_id(),
-                .duration = end - start
+                .duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
             });
-
-            return;
         } else {
             R result = std::invoke(self.f_, std::forward<Args>(args)...);
 
@@ -600,20 +621,20 @@ template<typename F> template<typename Self, typename... Args> decltype(auto) em
                 .ph = phase::exit,
                 .loc = self.loc_,
                 .thread_id = std::this_thread::get_id(),
-                .duration = end - start
+                .duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
             });
 
             return result;
         }
-    } catch (...) {
+    } catch (std::exception & e) {
         const auto end = clock::now();
         emkylog::log_event(event{
             .name = self.name_,
             .ph = phase::exception,
             .loc = self.loc_,
             .thread_id = std::this_thread::get_id(),
-            .duration = end - start,
-            .what = "unknown exception"
+            .duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start),
+            .what = e.what()
         });
         throw;
     }

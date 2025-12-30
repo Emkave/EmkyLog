@@ -23,7 +23,6 @@ It supports:
 - **Fast numeric formatting** using `std::to_chars` for ints/floats
 - **Control object** can be passed as the **last argument** to variadic logging
 - **Observers** allow the logger to observe any functions/anonymous functions/methods and log on execution
-
 ---
 
 ## Requirements
@@ -50,3 +49,12 @@ So on first use it will attempt to create the `emkylog` directory.
 
 ```cpp
 #include "emkylog.h"
+```
+
+## Instruction Set
+
+```cpp
+static error_code emkylog::init();
+static error_code emkylog::Init(); 
+```
+Initializes directories and opens logging files.

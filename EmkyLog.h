@@ -38,7 +38,7 @@
     -- Add timers to measure the cpu, user, and system function execution duration.
     -- Add network observers to observer and log upon the receiving or sending network packets.
     -- Enhance the README.md to make it attractive because a book is judged by its cover!
-
+    -- Add more "requires" stuff so the users would be informed by the compiler in advance if they are about to do smth completely weird.
 */
 
 class emkylog {

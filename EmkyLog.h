@@ -1,3 +1,9 @@
+/*
+ * EmkyLog
+ * Copyright (c) from 2025 - to 18446744073709551615, author: Natik Agaev
+ * All rights reserved.
+ */
+
 #ifndef EMKYLOG_H
 #define EMKYLOG_H
 #include <format>
@@ -18,7 +24,6 @@
 #include <filesystem>
 #include <string>
 #include <fstream>
-
 
 
 /* TODO:

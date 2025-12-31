@@ -2,6 +2,8 @@
  * EmkyLog
  * Copyright (c) from 2025 - to 18446744073709551615, author: Natik Agaev
  * All rights reserved.
+ * 
+ * If you find bugs - please, contact IMMEDIATELY!
  */
 
 #ifndef EMKYLOG_H
@@ -24,11 +26,9 @@
 #include <filesystem>
 #include <string>
 #include <fstream>
-
+#include <bitset>
 
 /* TODO:
-    -- Completely rewrite the control system as the users will get very annoyed by the necessity of defining the control structure
-       from the ground all the time. Probably make a enum of controls or giant inheritance web of structures as flags.
     -- Completely rewrite the appending operator as it seems the compiler mixes the '<' operator.
     -- Add custom log formatting parser for users' preferences of logs' outlook.
     -- Add printing.
@@ -42,7 +42,7 @@
 */
 
 class emkylog {
-    enum error_code {
+    enum class error_code {
         NO_ERROR,
         INIT_FAILED,
         FILE_CLOSED,
@@ -64,17 +64,37 @@ class emkylog {
     static std::recursive_mutex mtx;
 
 public:
-    struct control_s {
-        std::optional<std::string> regex;
-        std::optional<bool> newline;
+    struct settings_s {
+        bool auto_newline = true;
+        bool auto_threadid = false;
+        bool auto_date = false;
+        bool auto_time = false;
     };
+
+
+    enum class mode : std::uint32_t {
+        none,
+        newline = 1<<0,
+        nonewline = 1<<1,
+        threadid = 1<<2,
+        date = 1<<4,
+        time = 1<<5
+    };
+
+    friend constexpr mode operator | (const mode m1, const mode m2) noexcept {
+        return static_cast<mode>(static_cast<std::uint32_t>(m1) | static_cast<std::uint32_t>(m2));
+    }
+
+    friend constexpr mode operator & (const mode m1, const mode m2) noexcept {
+        return static_cast<mode>(static_cast<std::uint32_t>(m1) & static_cast<std::uint32_t>(m2));
+    }
 
     emkylog() = default;
 
     static error_code init();
     static error_code Init();
-    static error_code set_control(control_s) noexcept;
-    static error_code SetControl(const control_s &) noexcept;
+    static error_code set_settings(settings_s) noexcept;
+    static error_code SetSettings(const settings_s &) noexcept;
     static error_code set_log_path(std::string_view);
     static error_code SetLogPath(std::string_view);
     static error_code set_error_log_path(std::string_view);
@@ -83,10 +103,16 @@ public:
     static error_code SetLogFilename(std::string_view) noexcept;
     static error_code set_error_log_filename(std::string_view) noexcept;
     static error_code SetErrorLogFilename(std::string_view) noexcept;
-    static void set_auto_new_line(bool &&) noexcept;
-    static void SetAutoNewLine(bool &&) noexcept;
-    static control_s get_control() noexcept;
-    static control_s GetControl() noexcept;
+    static void set_auto_new_line_setting(bool &&) noexcept;
+    static void SetAutoNewLineSetting(bool &&) noexcept;
+    static void set_auto_thread_id_setting(bool &&) noexcept;
+    static void SetAutoThreadIDSetting(bool &&) noexcept;
+    static void set_auto_date_setting(bool &&) noexcept;
+    static void SetAutoDateSetting(bool &&) noexcept;
+    static void set_auto_time_setting(bool &&) noexcept;
+    static void SetAutoTimeSetting(bool &&) noexcept;
+    static settings_s & get_settings() noexcept;
+    static settings_s & GetSettings() noexcept;
     static std::string_view get_log_path() noexcept;
     static std::string_view GetLogPath() noexcept;
     static std::string_view get_error_log_path() noexcept;
@@ -95,15 +121,21 @@ public:
     static std::string_view GetLogFilename() noexcept;
     static std::string_view get_error_log_filename() noexcept;
     static std::string_view GetErrorLogFilename() noexcept;
-    static bool get_auto_new_line() noexcept;
-    static bool GetAutoNewLine() noexcept;
-    static emkylog::error_code log(std::string_view, const emkylog::control_s & =emkylog::control);
+    static bool get_auto_new_line_setting() noexcept;
+    static bool GetAutoNewLineSetting() noexcept;
+    static bool get_auto_thread_id_setting() noexcept;
+    static bool GetAutoThreadIDSetting() noexcept;
+    static bool get_auto_date_setting() noexcept;
+    static bool GetAutoDateSetting() noexcept;
+    static bool get_auto_time_setting() noexcept;
+    static bool GetAutoTimeSetting() noexcept;
+    static error_code log(std::string_view, mode=mode::none);
     template<typename...Args> static error_code log(Args&&...);
-    static emkylog::error_code Log(std::string_view, const emkylog::control_s & =emkylog::control);
+    static error_code Log(std::string_view, mode=mode::none);
     template<typename...Args> static error_code Log(Args&&...);
-    static emkylog::error_code log_error(std::string_view, const emkylog::control_s & =emkylog::control);
+    static error_code log_error(std::string_view, mode=mode::none);
     template<typename...Args> static error_code log_error(Args&&...);
-    static emkylog::error_code LogError(std::string_view, const emkylog::control_s & =emkylog::control);
+    static error_code LogError(std::string_view, mode=mode::none);
     template<typename...Args> static error_code LogError(Args&&...);
     static error_code open();
     static error_code Open();
@@ -130,10 +162,10 @@ private:
         level lvl;
         bool auto_flush;
         bool suppress_final_newline = false;
-        control_s ctrl;
+        mode mode_;
 
-        static emkylog::error_code flush(const level lvl, const std::string_view str, const emkylog::control_s & ctrl) {
-            return (lvl == level::info) ? emkylog::log(str, ctrl) : emkylog::log_error(str, ctrl);
+        static emkylog::error_code flush(const level lvl, const std::string_view str, const emkylog::mode & mode) {
+            return (lvl == level::info) ? emkylog::log(str, mode) : emkylog::log_error(str, mode);
         }
 
         template <typename T> void append_to_chars(T v) {
@@ -147,39 +179,53 @@ private:
         }
 
     public:
-        explicit line(const level lvl, emkylog::control_s ctrl=emkylog::get_control(), const bool auto_flush=true) : lvl(lvl), auto_flush(auto_flush), ctrl(std::move(ctrl)) {}
+        explicit line(const level lvl, const emkylog::mode mode=emkylog::mode::none, const bool auto_flush=true) : lvl(lvl), auto_flush(auto_flush), mode_(mode) {}
+        line(const line &) = delete;
+        line & operator = (const line &) = delete;
+        line(line && other) noexcept : string(std::move(other.string)), lvl(other.lvl), auto_flush(other.auto_flush), suppress_final_newline(other.suppress_final_newline), mode_(other.mode_) {
+            other.auto_flush = false;
+        }
+
+        line & operator = (line && other) noexcept {
+            if (this != &other) {
+                if (this->auto_flush) {
+                    (void)flush(this->lvl, this->string, this->mode_);
+                }
+                string = std::move(other.string);
+                this->lvl = other.lvl;
+                this->auto_flush = other.auto_flush;
+                this->suppress_final_newline = other.suppress_final_newline;
+                this->mode_ = other.mode_;
+
+                other.auto_flush = false;
+            }
+            return *this;
+        }
+
 
         ~line() noexcept {
             if (!this->auto_flush) {
                 return;
             }
 
-            (void)flush(this->lvl, this->string, this->ctrl);
+            (void)flush(this->lvl, this->string, this->mode_);
         }
 
-        [[nodiscard]] emkylog::error_code flush_now() const {
+        [[nodiscard]] emkylog::error_code flush_now() {
             std::lock_guard lock (emkylog::mtx);
-            return flush(this->lvl, this->string, this->ctrl);
+            this->auto_flush = false;
+            return flush(this->lvl, this->string, this->mode_);
         }
 
         line & operator << (const std::string_view s) {this->string.append(s); return *this;}
         line & operator << (const char ch) {this->string.push_back(ch); return *this;}
         line & operator << (const char * s) {return *this << std::string_view(s);}
         line & operator << (const bool b) {this->string += (b ? "true" : "false"); return *this;}
-        line & operator << (const emkylog::control_s & ctrl) {this->ctrl = ctrl; return *this;}
+        line & operator << (const emkylog::mode mode) {this->mode_ = mode; return *this;}
         line & operator << (const std::thread::id tid) {return *this << std::hash<std::thread::id>{}(tid);}
 
         template <typename T> requires (std::is_integral_v<std::remove_reference_t<T>> || std::is_floating_point_v<std::remove_reference_t<T>>)
         line & operator << (T v) {this->append_to_chars(v); return *this;}
-
-        // line & operator < (const std::string_view s) {this->suppress_final_newline = true; return *this << s;}
-        // line & operator < (const char ch) {this->suppress_final_newline = true; return *this << ch;}
-        // line & operator < (const char * s) {this->suppress_final_newline = true; return *this << s;}
-        // line & operator < (const bool b) {this->suppress_final_newline = true; return *this << b;}
-        // line & operator < (const std::thread::id tid) {this->suppress_final_newline = true; return *this << tid;}
-        //
-        // template <typename T> requires (std::is_integral_v<std::remove_reference_t<T>> || std::is_floating_point_v<std::remove_reference_t<T>>)
-        // line & operator < (T v) { this->suppress_final_newline = true;return *this << v;}
 
     };
 
@@ -198,9 +244,6 @@ private:
     template<typename T, typename... Ts> struct control_type<T, Ts...> : control_type<Ts...> {};
     template<typename... Ts> using control_type_t = typename control_type<Ts...>::type;
     template<typename Tuple, size_t... Is> static void stream_prefix(line&, Tuple&&, std::index_sequence<Is...>);
-
-    static control_s control;
-    static control_s default_control() {return {{}, std::nullopt};}
 
 public:
     static constexpr stream loginfo {level::info};
@@ -241,9 +284,11 @@ private:
     };
 
     static void log_event(const event & e);
+    static settings_s settings;
 
 public:
-    template <typename F> static constexpr auto observe(const std::string_view, F&&, std::string_view="none");
+    template <typename F> static constexpr auto observe(std::string_view, F&&, std::string_view="none");
+
 };
 
 inline std::string emkylog::log_path = (std::filesystem::current_path() / "emkylog").string();
@@ -254,23 +299,29 @@ inline std::ofstream emkylog::log_stream = {};
 inline std::ofstream emkylog::error_log_stream = {};
 inline bool emkylog::inited = false;
 inline std::recursive_mutex emkylog::mtx;
-inline emkylog::control_s emkylog::control{std::nullopt, std::nullopt};
+inline emkylog::settings_s emkylog::settings;
 
 inline emkylog::error_code emkylog::Init() {return emkylog::init();}
-inline emkylog::error_code emkylog::SetControl(const emkylog::control_s & control) noexcept {return emkylog::set_control(control);}
+inline emkylog::error_code emkylog::SetSettings(const emkylog::settings_s & control) noexcept {return emkylog::set_settings(control);}
 inline emkylog::error_code emkylog::SetLogPath(const std::string_view path) {return emkylog::set_log_path(path);}
 inline emkylog::error_code emkylog::SetErrorLogPath(const std::string_view path) {return emkylog::set_error_log_path(path);}
 inline emkylog::error_code emkylog::SetLogFilename(const std::string_view filename) noexcept {return emkylog::set_log_filename(filename);}
 inline emkylog::error_code emkylog::SetErrorLogFilename(const std::string_view filename) noexcept {return emkylog::set_error_log_filename(filename);}
-inline void emkylog::SetAutoNewLine(bool && boolean) noexcept {return emkylog::set_auto_new_line(static_cast<bool&&>(boolean));}
-inline emkylog::control_s emkylog::GetControl() noexcept {return emkylog::get_control();}
+inline void emkylog::SetAutoNewLineSetting(bool && boolean) noexcept {return emkylog::set_auto_new_line_setting(static_cast<bool&&>(boolean));}
+inline void emkylog::SetAutoDateSetting(bool && boolean) noexcept {return emkylog::set_auto_date_setting(static_cast<bool&&>(boolean));}
+inline void emkylog::SetAutoThreadIDSetting(bool && boolean) noexcept {return emkylog::set_auto_thread_id_setting(static_cast<bool&&>(boolean));}
+inline void emkylog::SetAutoTimeSetting(bool && boolean) noexcept {return emkylog::set_auto_time_setting(static_cast<bool&&>(boolean));}
+inline emkylog::settings_s & emkylog::GetSettings() noexcept {return emkylog::get_settings();}
 inline std::string_view emkylog::GetLogPath() noexcept {return emkylog::get_log_path();}
 inline std::string_view emkylog::GetErrorLogPath() noexcept {return emkylog::get_error_log_path();}
 inline std::string_view emkylog::GetLogFilename() noexcept {return emkylog::get_log_filename();}
 inline std::string_view emkylog::GetErrorLogFilename() noexcept {return emkylog::get_error_log_filename();}
-inline bool emkylog::GetAutoNewLine() noexcept {return emkylog::get_auto_new_line();}
-inline emkylog::error_code emkylog::Log(const std::string_view log, const emkylog::control_s & ctrl) {return emkylog::log(log, ctrl);}
-inline emkylog::error_code emkylog::LogError(const std::string_view log, const emkylog::control_s & ctrl) {return emkylog::log_error(log, ctrl);}
+inline bool emkylog::GetAutoNewLineSetting() noexcept {return emkylog::get_auto_new_line_setting();}
+inline bool emkylog::GetAutoDateSetting() noexcept {return emkylog::get_auto_date_setting();}
+inline bool emkylog::GetAutoThreadIDSetting() noexcept {return emkylog::get_auto_thread_id_setting();}
+inline bool emkylog::GetAutoTimeSetting() noexcept {return emkylog::get_auto_time_setting();}
+inline emkylog::error_code emkylog::Log(const std::string_view log, const emkylog::mode mode) {return emkylog::log(log, mode);}
+inline emkylog::error_code emkylog::LogError(const std::string_view log, const emkylog::mode mode) {return emkylog::log_error(log, mode);}
 inline emkylog::error_code emkylog::OpenLogger() {return emkylog::open_logger();}
 inline emkylog::error_code emkylog::Close() {return emkylog::close();}
 inline emkylog::error_code emkylog::CloseLogger() {return emkylog::close_logger();}
@@ -282,107 +333,125 @@ template <typename... Args> emkylog::error_code emkylog::Log(Args &&... args) {r
 inline emkylog::error_code emkylog::init() {
     std::lock_guard lock (emkylog::mtx);
 
-    if (emkylog::set_log_path(emkylog::log_path) || emkylog::set_error_log_path(emkylog::error_log_path) || emkylog::set_log_filename(emkylog::log_filename) || emkylog::set_error_log_filename(emkylog::error_log_filename)) {
-        return INIT_FAILED;
+    if (emkylog::set_log_path(emkylog::log_path) != error_code::NO_ERROR || emkylog::set_error_log_path(emkylog::error_log_path) != error_code::NO_ERROR || emkylog::set_log_filename(emkylog::log_filename) != error_code::NO_ERROR || emkylog::set_error_log_filename(emkylog::error_log_filename) != error_code::NO_ERROR) {
+        return emkylog::error_code::INIT_FAILED;
     }
     emkylog::inited = true;
 
-    return NO_ERROR;
+    return emkylog::error_code::NO_ERROR;
 }
 
 
-inline emkylog::error_code emkylog::set_control(control_s control) noexcept {
+inline emkylog::error_code emkylog::set_settings(const settings_s settings) noexcept {
     std::lock_guard lock (emkylog::mtx);
-    emkylog::control = std::move(control);
-    return NO_ERROR;
+    emkylog::settings = settings;
+    return error_code::NO_ERROR;
 }
 
 
 inline emkylog::error_code emkylog::set_log_path(const std::string_view path) {
     std::lock_guard lock (emkylog::mtx);
     if (emkylog::log_stream.is_open()) {
-        return FILE_OPENED;
+        return error_code::FILE_OPENED;
     }
 
     std::error_code ec;
     std::filesystem::create_directories(path, ec);
 
     if (ec) {
-        return FAILED_DIRECTORY_CREATION;
+        return error_code::FAILED_DIRECTORY_CREATION;
     }
 
     emkylog::log_path = path;
 
-    return NO_ERROR;
+    return error_code::NO_ERROR;
 }
 
 
 inline emkylog::error_code emkylog::set_error_log_path(const std::string_view path) {
     std::lock_guard lock (emkylog::mtx);
     if (emkylog::error_log_stream.is_open()) {
-        return FILE_OPENED;
+        return error_code::FILE_OPENED;
     }
 
     std::error_code ec;
     std::filesystem::create_directories(path, ec);
 
     if (ec) {
-        return FAILED_DIRECTORY_CREATION;
+        return error_code::FAILED_DIRECTORY_CREATION;
     }
 
     emkylog::error_log_path = path;
 
-    return NO_ERROR;
+    return error_code::NO_ERROR;
 }
 
 
 inline emkylog::error_code emkylog::set_log_filename(const std::string_view filename) noexcept {
     std::lock_guard lock (emkylog::mtx);
     if (emkylog::log_stream.is_open()) {
-        return FILE_OPENED;
+        return error_code::FILE_OPENED;
     }
 
     if (filename.empty()) {
-        return INVALID_FILENAME;
+        return error_code::INVALID_FILENAME;
     }
 
     {if (const std::ofstream check (std::filesystem::path(emkylog::log_path) / filename, std::ios::app); !check) {
-        return FAILED_FILE_CREATION;
+        return error_code::FAILED_FILE_CREATION;
     }}
     emkylog::log_filename = filename;
 
-    return NO_ERROR;
+    return error_code::NO_ERROR;
 }
 
 
 inline emkylog::error_code emkylog::set_error_log_filename(const std::string_view filename) noexcept {
     std::lock_guard lock (emkylog::mtx);
     if (emkylog::error_log_stream.is_open()) {
-        return FILE_OPENED;
+        return error_code::FILE_OPENED;
     }
 
     if (filename.empty()) {
-        return INVALID_FILENAME;
+        return error_code::INVALID_FILENAME;
     }
 
     {if (const std::ofstream check (std::filesystem::path(emkylog::error_log_path) / filename, std::ios::app); !check) {
-        return FAILED_FILE_CREATION;
+        return error_code::FAILED_FILE_CREATION;
     }}
     emkylog::error_log_filename = filename;
 
-    return NO_ERROR;
+    return error_code::NO_ERROR;
 }
 
 
-inline void emkylog::set_auto_new_line(bool && boolean) noexcept {
+inline void emkylog::set_auto_new_line_setting(bool && boolean) noexcept {
     std::lock_guard lock (emkylog::mtx);
-    emkylog::control.newline = boolean;
+    emkylog::settings.auto_newline = boolean;
 }
 
 
-inline emkylog::control_s emkylog::get_control() noexcept {
+inline void emkylog::set_auto_thread_id_setting(bool && boolean) noexcept {
     std::lock_guard lock (emkylog::mtx);
-    return emkylog::control;
+    emkylog::settings.auto_threadid = boolean;
+}
+
+
+inline void emkylog::set_auto_date_setting(bool && boolean) noexcept {
+    std::lock_guard lock (emkylog::mtx);
+    emkylog::settings.auto_date = boolean;
+}
+
+
+inline void emkylog::set_auto_time_setting(bool && boolean) noexcept {
+    std::lock_guard lock (emkylog::mtx);
+    emkylog::settings.auto_time = boolean;
+}
+
+
+inline emkylog::settings_s & emkylog::get_settings() noexcept {
+    std::lock_guard lock (emkylog::mtx);
+    return emkylog::settings;
 }
 
 
@@ -410,16 +479,34 @@ inline std::string_view emkylog::get_error_log_filename() noexcept {
 }
 
 
-inline bool emkylog::get_auto_new_line() noexcept {
+inline bool emkylog::get_auto_new_line_setting() noexcept {
     std::lock_guard lock (emkylog::mtx);
-    return emkylog::control.newline.value_or(false);
+    return emkylog::settings.auto_newline;
 }
 
 
-inline emkylog::error_code emkylog::log(const std::string_view slog, const emkylog::control_s & ctrl) {
+inline bool emkylog::get_auto_date_setting() noexcept {
+    std::lock_guard lock (emkylog::mtx);
+    return emkylog::settings.auto_date;
+}
+
+
+inline bool emkylog::get_auto_thread_id_setting() noexcept {
+    std::lock_guard lock (emkylog::mtx);
+    return emkylog::settings.auto_threadid;
+}
+
+
+inline bool emkylog::get_auto_time_setting() noexcept {
+    std::lock_guard lock (emkylog::mtx);
+    return emkylog::settings.auto_time;
+}
+
+
+inline emkylog::error_code emkylog::log(const std::string_view slog, const emkylog::mode mode) {
     std::lock_guard lock (emkylog::mtx);
     if (!emkylog::initiated()) {
-        if (const error_code res = emkylog::init()) {
+        if (const emkylog::error_code res = emkylog::init(); res != error_code::NO_ERROR) {
             return res;
         }
     }
@@ -428,15 +515,35 @@ inline emkylog::error_code emkylog::log(const std::string_view slog, const emkyl
         emkylog::log_stream.open(std::filesystem::path(emkylog::log_path) / emkylog::log_filename, std::ios::app);
 
         if (!emkylog::log_stream.is_open()) {
-            return FILE_CLOSED;
+            return emkylog::error_code::FILE_CLOSED;
         }
     }
+    const std::underlying_type_t<emkylog::mode> bits = static_cast<std::underlying_type_t<emkylog::mode>>(mode);
 
-    emkylog::log_stream << slog; // TODO: add here control filters in the future
-    emkylog::log_stream << (ctrl.newline.value_or(false) ? "\n" : "");
+    if (bits & static_cast<std::underlying_type_t<emkylog::mode>>(mode::date) || emkylog::get_auto_date_setting()) {
+        emkylog::log_stream << std::format("{:%Y-%m-%d}", std::chrono::year_month_day{std::chrono::floor<std::chrono::days>(std::chrono::system_clock::now())}) << " ";
+    }
+
+    if (bits & static_cast<std::underlying_type_t<emkylog::mode>>(mode::time) || emkylog::get_auto_time_setting()) {
+        emkylog::log_stream << std::format("{:%H:%M:%S}", std::chrono::zoned_time{std::chrono::current_zone(), std::chrono::system_clock::now()}) << " ";
+    }
+
+    if (bits & static_cast<std::underlying_type_t<emkylog::mode>>(mode::threadid) || emkylog::get_auto_thread_id_setting()) {
+        emkylog::log_stream << "TID: " << std::this_thread::get_id() << " ";
+    }
+
+    emkylog::log_stream << slog;
+
+    bool is_newline = emkylog::get_auto_new_line_setting();
+    if (bits & static_cast<std::underlying_type_t<emkylog::mode>>(mode::nonewline)) {
+        is_newline = false;
+    }
+
+    if ((bits & static_cast<std::underlying_type_t<emkylog::mode>>(mode::newline)) || is_newline) {
+        emkylog::log_stream << '\n';
+    }
     emkylog::log_stream.flush();
-
-    return NO_ERROR;
+    return error_code::NO_ERROR;
 }
 
 
@@ -444,26 +551,25 @@ template <typename... Args> emkylog::error_code emkylog::log(Args &&... args) {
     std::lock_guard lock (emkylog::mtx);
     using last_t = std::remove_cvref_t<emkylog::control_type_t<Args...>>;
 
-    if constexpr (std::is_same_v<last_t, emkylog::control_s>) {
+    if constexpr (std::is_same_v<last_t, emkylog::mode>) {
         auto tuple = std::forward_as_tuple(std::forward<Args>(args)...);
         constexpr size_t N = sizeof...(Args);
         static_assert(N >= 1);
-        emkylog::control_s ctrl = std::get<N-1>(tuple);
-        line l(level::info, std::move(ctrl), false);
+        line l(level::info, std::get<N-1>(tuple), false);
         emkylog::stream_prefix(l, tuple, std::make_index_sequence<N-1>{});
         return l.flush_now();
     } else {
-        line l(level::info, emkylog::default_control(), false);
+        line l(level::info, emkylog::mode::none, false);
         (l << ... << std::forward<Args>(args));
         return l.flush_now();
     }
 }
 
 
-inline emkylog::error_code emkylog::log_error(const std::string_view slog, const control_s & ctrl) {
+inline emkylog::error_code emkylog::log_error(const std::string_view slog, const emkylog::mode mode) {
     std::lock_guard lock (emkylog::mtx);
     if (!emkylog::initiated()) {
-        if (const emkylog::error_code res = emkylog::init()) {
+        if (const emkylog::error_code res = emkylog::init(); res != error_code::NO_ERROR) {
             return res;
         }
     }
@@ -472,15 +578,36 @@ inline emkylog::error_code emkylog::log_error(const std::string_view slog, const
         emkylog::error_log_stream.open(std::filesystem::path(emkylog::error_log_path) / emkylog::error_log_filename, std::ios::app);
 
         if (!emkylog::error_log_stream.is_open()) {
-            return FILE_CLOSED;
+            return error_code::FILE_CLOSED;
         }
     }
 
-    emkylog::error_log_stream << slog; // TODO: add here control filters
-    emkylog::log_stream << (ctrl.newline.value_or(false) ? "\n" : "");
-    emkylog::error_log_stream.flush();
+    const std::underlying_type_t<emkylog::mode> bits = static_cast<std::underlying_type_t<emkylog::mode>>(mode);
 
-    return NO_ERROR;
+    if (bits & static_cast<std::underlying_type_t<emkylog::mode>>(mode::date) || emkylog::get_auto_date_setting()) {
+        emkylog::error_log_stream << std::format("{:%Y-%m-%d}", std::chrono::year_month_day{std::chrono::floor<std::chrono::days>(std::chrono::system_clock::now())}) << " ";
+    }
+
+    if (bits & static_cast<std::underlying_type_t<emkylog::mode>>(mode::time) || emkylog::get_auto_time_setting()) {
+        emkylog::error_log_stream << std::format("{:%H:%M:%S}", std::chrono::zoned_time{std::chrono::current_zone(), std::chrono::system_clock::now()}) << " ";
+    }
+
+    if (bits & static_cast<std::underlying_type_t<emkylog::mode>>(mode::threadid) || emkylog::get_auto_thread_id_setting()) {
+        emkylog::error_log_stream << "TID: " << std::this_thread::get_id() << " ";
+    }
+
+    emkylog::error_log_stream << slog;
+
+    bool is_newline = emkylog::get_auto_new_line_setting();
+    if (bits & static_cast<std::underlying_type_t<emkylog::mode>>(mode::nonewline)) {
+        is_newline = false;
+    }
+
+    if ((bits & static_cast<std::underlying_type_t<emkylog::mode>>(mode::newline)) || is_newline) {
+        emkylog::error_log_stream << '\n';
+    }
+    emkylog::error_log_stream.flush();
+    return error_code::NO_ERROR;
 }
 
 
@@ -488,16 +615,15 @@ template <typename... Args> emkylog::error_code emkylog::log_error(Args &&...arg
     std::lock_guard lock (emkylog::mtx);
     using last_t = std::remove_cvref_t<emkylog::control_type_t<Args...>>;
 
-    if constexpr (std::is_same_v<last_t, emkylog::control_s>) {
+    if constexpr (std::is_same_v<last_t, emkylog::mode>) {
         auto tuple = std::forward_as_tuple(std::forward<Args>(args)...);
         constexpr size_t N = sizeof...(Args);
         static_assert(N >= 1);
-        emkylog::control_s ctrl = std::get<N-1>(tuple);
-        line l(level::error, std::move(ctrl), false);
+        line l(level::error, std::get<N-1>(tuple), false);
         emkylog::stream_prefix(l, tuple, std::make_index_sequence<N-1>{});
         return l.flush_now();
     } else {
-        line l(level::error, emkylog::default_control(), false);
+        line l(level::error, emkylog::mode::none, false);
         (l << ... << std::forward<Args>(args));
         return l.flush_now();
     }
@@ -505,7 +631,7 @@ template <typename... Args> emkylog::error_code emkylog::log_error(Args &&...arg
 
 
 inline emkylog::error_code emkylog::open() {
-    if (const emkylog::error_code res = emkylog::open_error_logger()) {
+    if (const emkylog::error_code res = emkylog::open_error_logger(); res != error_code::NO_ERROR) {
         return res;
     }
 
@@ -517,47 +643,47 @@ inline emkylog::error_code emkylog::open() {
 inline emkylog::error_code emkylog::open_logger() {
     std::lock_guard lock (emkylog::mtx);
     if (!emkylog::initiated()) {
-        if (const emkylog::error_code res = emkylog::init()) {
+        if (const emkylog::error_code res = emkylog::init(); res != error_code::NO_ERROR) {
             return res;
         }
     }
 
     if (emkylog::log_stream.is_open()) {
-        return FILE_OPENED;
+        return error_code::FILE_OPENED;
     }
 
     emkylog::log_stream.open(std::filesystem::path(emkylog::log_path) / emkylog::log_filename, std::ios::app);
 
     if (!emkylog::log_stream.is_open()) {
-        return FILE_CLOSED;
+        return error_code::FILE_CLOSED;
     }
-    return NO_ERROR;
+    return error_code::NO_ERROR;
 }
 
 
 inline emkylog::error_code emkylog::open_error_logger() {
     std::lock_guard lock (emkylog::mtx);
     if (!emkylog::initiated()) {
-        if (const emkylog::error_code res = emkylog::init()) {
+        if (const emkylog::error_code res = emkylog::init(); res != error_code::NO_ERROR) {
             return res;
         }
     }
 
     if (emkylog::error_log_stream.is_open()) {
-        return FILE_OPENED;
+        return error_code::FILE_OPENED;
     }
 
     emkylog::error_log_stream.open(std::filesystem::path(emkylog::error_log_path) / emkylog::error_log_filename, std::ios::app);
 
     if (!emkylog::error_log_stream.is_open()) {
-        return FILE_CLOSED;
+        return error_code::FILE_CLOSED;
     }
-    return NO_ERROR;
+    return error_code::NO_ERROR;
 }
 
 
 inline emkylog::error_code emkylog::close() {
-    if (const emkylog::error_code res = emkylog::close_error_logger()) {
+    if (const emkylog::error_code res = emkylog::close_error_logger(); res != error_code::NO_ERROR) {
         return res;
     }
 
@@ -568,22 +694,22 @@ inline emkylog::error_code emkylog::close() {
 inline emkylog::error_code emkylog::close_logger() {
     std::lock_guard lock (emkylog::mtx);
     if (!emkylog::log_stream.is_open()) {
-        return FILE_CLOSED;
+        return error_code::FILE_CLOSED;
     }
 
     emkylog::log_stream.close();
-    return NO_ERROR;
+    return error_code::NO_ERROR;
 }
 
 
 inline emkylog::error_code emkylog::close_error_logger() {
     std::lock_guard lock (emkylog::mtx);
     if (!emkylog::error_log_stream.is_open()) {
-        return FILE_CLOSED;
+        return error_code::FILE_CLOSED;
     }
 
     emkylog::error_log_stream.close();
-    return NO_ERROR;
+    return error_code::NO_ERROR;
 }
 
 
@@ -606,15 +732,15 @@ template<typename F> constexpr auto emkylog::observe(const std::string_view name
 inline void emkylog::log_event(const event & e) {
     switch (e.ph) {
         case emkylog::enter:
-            emkylog::loginfo << "[Observer]: " << e.name << " has" << " entered " << emkylog::control_s{std::nullopt, false};
+            emkylog::loginfo << "[Observer]: " << e.name << " has" << " entered " << emkylog::mode::nonewline;
             goto noerror;
 
         case emkylog::exit:
-            emkylog::loginfo << "[Observer]: " << e.name << " has" << " exited " << emkylog::control_s{std::nullopt, false};
+            emkylog::loginfo << "[Observer]: " << e.name << " has" << " exited " << emkylog::mode::nonewline;
             goto noerror;
 
         case emkylog::exception:
-            emkylog::logerror << "[Observer]: " << e.name << " has" << " threw " << emkylog::control_s{std::nullopt, false};
+            emkylog::logerror << "[Observer]: " << e.name << " has" << " threw " << emkylog::mode::nonewline;
             emkylog::logerror << " with the message: " << e.message << ". " << e.duration.count() << "ms.\n";
             break;
 

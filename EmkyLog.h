@@ -28,18 +28,7 @@
 #include <fstream>
 #include <bitset>
 
-/* TODO:
-    -- Completely rewrite the appending operator as it seems the compiler mixes the '<' operator.
-    -- Add custom log formatting parser for users' preferences of logs' outlook.
-    -- Add printing.
-    -- Add colorful printing. Why not though? Fancy ^.^.
-    -- Add standard C++ operator observers.
-    -- Add system observers. Why not go deeper?
-    -- Add timers to measure the cpu, user, and system function execution duration.
-    -- Add network observers to observer and log upon the receiving or sending network packets.
-    -- Enhance the README.md to make it attractive because a book is judged by its cover!
-    -- Add more "requires" stuff so the users would be informed by the compiler in advance if they are about to do smth completely weird.
-*/
+
 
 class emkylog {
     enum class error_code {

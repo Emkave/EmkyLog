@@ -29,18 +29,32 @@
 #include <bitset>
 
 
-
+/**
+ * @brief EmkyLog: single-header file logger with stream-style API and observer instrumentation.
+ *
+ * This class provides:
+ * - File-based logging for info and error streams
+ * - A stream-style API via @ref loginfo and @ref logerror
+ * - Global settings for automatically adding newline/time/date/thread-id
+ * - A lightweight function observer wrapper via @ref observe()
+ *
+ * Thread-safety:
+ * - Public APIs are synchronized with an internal recursive mutex.
+ *
+ * @note The API provides both snake_case and PascalCase variants for many functions.
+ */
 class emkylog {
+    /**
+     * @brief Error codes returned by EmkyLog operations.
+     */
     enum class error_code {
-        NO_ERROR,
-        INIT_FAILED,
-        FILE_CLOSED,
-        FILE_OPENED,
-        CANNOT_OPEN_LOG_FILE,
-        INVALID_FILENAME,
-        FAILED_DIRECTORY_CREATION,
-        CANNOT_OPEN_ERROR_LOG_FILE,
-        FAILED_FILE_CREATION
+        NO_ERROR,    /**< Operation succeeded. */
+        INIT_FAILED, /**< Initialization failed (chained configuration failure). */
+        FILE_CLOSED, /**< Expected an open file but it was closed / could not be opened. */
+        FILE_OPENED, /**< Expected a closed file but it was already open. */
+        INVALID_FILENAME,  /**< Provided filename was empty/invalid. */
+        FAILED_DIRECTORY_CREATION, /**< Could not create required directory. */
+        FAILED_FILE_CREATION /**< Could not create/append test file at target location. */
     };
 
     static std::string log_path;
@@ -53,92 +67,395 @@ class emkylog {
     static std::recursive_mutex mtx;
 
 public:
+    /**
+     * @brief Logger settings controlling automatic prefix/suffix behavior.
+     *
+     * These flags affect the behavior of @ref log() and @ref log_error() (and their overloads)
+     * unless overridden by @ref mode flags.
+     */
     struct settings_s {
-        bool auto_newline = true;
-        bool auto_threadid = false;
-        bool auto_date = false;
-        bool auto_time = false;
+        bool auto_newline = true;   /**< If true, append newline by default. */
+        bool auto_threadid = false; /**< If true, prefix with thread-id by default. */
+        bool auto_date = false;     /**< If true, prefix with date by default. */
+        bool auto_time = false;     /**< If true, prefix with time by default. */
     };
 
-
+    /**
+     * @brief Mode flags (bitmask) controlling per-call formatting behavior.
+     *
+     * Use bitwise operators @ref operator| and @ref operator& to combine/test flags.
+     *
+     * @note `none` means "no explicit per-call overrides".
+     */
     enum class mode : std::uint32_t {
-        none,
-        newline = 1<<0,
-        nonewline = 1<<1,
-        threadid = 1<<2,
-        date = 1<<4,
-        time = 1<<5
+        none,             /**< No mode flags (use settings defaults). */
+        newline = 1<<0,   /**< Force newline at end. */
+        nonewline = 1<<1, /**< Force no newline at end. */
+        threadid = 1<<2,  /**< Include thread-id prefix. */
+        date = 1<<4,      /**< Include date prefix. */
+        time = 1<<5       /**< Include time prefix. */
     };
 
+    /**
+     * @brief Bitwise OR for @ref mode flags.
+     * @param m1 First flag set.
+     * @param m2 Second flag set.
+     * @return Combined flag set.
+     */
     friend constexpr mode operator | (const mode m1, const mode m2) noexcept {
         return static_cast<mode>(static_cast<std::uint32_t>(m1) | static_cast<std::uint32_t>(m2));
     }
 
+    /**
+     * @brief Bitwise AND for @ref mode flags.
+     * @param m1 First flag set.
+     * @param m2 Second flag set.
+     * @return Intersection of flag sets.
+     */
     friend constexpr mode operator & (const mode m1, const mode m2) noexcept {
         return static_cast<mode>(static_cast<std::uint32_t>(m1) & static_cast<std::uint32_t>(m2));
     }
 
+    /**
+     * @brief Default constructor (stateless).
+     */
     emkylog() = default;
 
+    /**
+     * @brief Initialize logger paths/filenames and mark logger as initiated.
+     *
+     * This calls the setters with current static defaults:
+     * - log path
+     * - error log path
+     * - log filename
+     * - error log filename
+     *
+     * @return @ref error_code::NO_ERROR on success, otherwise an error code.
+     *
+     * @note Logging calls auto-initialize if not initiated.
+     */
     static error_code init();
+
+    /**
+     * @brief PascalCase alias for @ref init().
+     * @return Same as @ref init().
+     */
     static error_code Init();
+
+    /**
+     * @brief Set all logger settings atomically.
+     * @param setting_s New settings.
+     * @return @ref error_code::NO_ERROR on success.
+     */
     static error_code set_settings(settings_s) noexcept;
+
+    /**
+     * @brief PascalCase alias for @ref set_settings().
+     * @param setting_s New settings.
+     * @return Same as @ref set_settings().
+     */
     static error_code SetSettings(const settings_s &) noexcept;
+
+    /**
+     * @brief Set directory path for info log output.
+     *
+     * Fails if the info log file stream is already open.
+     * Attempts to create the directory if needed.
+     *
+     * @param path Directory path where info log file is stored.
+     * @return @ref error_code::NO_ERROR on success, otherwise an error code.
+     */
     static error_code set_log_path(std::string_view);
+
+    /** @brief PascalCase alias for @ref set_log_path(). */
     static error_code SetLogPath(std::string_view);
+
+    /**
+     * @brief Set directory path for error log output.
+     *
+     * Fails if the error log file stream is already open.
+     * Attempts to create the directory if needed.
+     *
+     * @param path Directory path where error log file is stored.
+     * @return @ref error_code::NO_ERROR on success, otherwise an error code.
+     */
     static error_code set_error_log_path(std::string_view);
+
+    /** @brief PascalCase alias for @ref set_error_log_path(). */
     static error_code SetErrorLogPath(std::string_view);
+
+    /**
+     * @brief Set filename for info log file (no path).
+     *
+     * Fails if the info log file stream is already open.
+     * Validates filename is non-empty and attempts a test open in append mode.
+     *
+     * @param filename New filename (no directories).
+     * @return @ref error_code::NO_ERROR on success, otherwise an error code.
+     */
     static error_code set_log_filename(std::string_view) noexcept;
+
+    /** @brief PascalCase alias for @ref set_log_filename(). */
     static error_code SetLogFilename(std::string_view) noexcept;
+
+    /**
+     * @brief Set filename for error log file (no path).
+     *
+     * Fails if the error log file stream is already open.
+     * Validates filename is non-empty and attempts a test open in append mode.
+     *
+     * @param filename New filename (no directories).
+     * @return @ref error_code::NO_ERROR on success, otherwise an error code.
+     */
     static error_code set_error_log_filename(std::string_view) noexcept;
+
+    /** @brief PascalCase alias for @ref set_error_log_filename(). */
     static error_code SetErrorLogFilename(std::string_view) noexcept;
+
+    /**
+     * @brief Enable/disable automatic newline behavior.
+     * @param boolean Boolean rvalue forwarded into the setting.
+     *
+     * @note Consider taking `bool` by value; `bool&&` is unusual for settings.
+     */
     static void set_auto_new_line_setting(bool &&) noexcept;
+
+    /** @brief PascalCase alias for @ref set_auto_new_line_setting(). */
     static void SetAutoNewLineSetting(bool &&) noexcept;
+
+    /**
+     * @brief Enable/disable automatic thread-id prefixing.
+     * @param boolean Boolean rvalue forwarded into the setting.
+     *
+     * @note Consider taking `bool` by value; `bool&&` is unusual for settings.
+     */
     static void set_auto_thread_id_setting(bool &&) noexcept;
+
+    /** @brief PascalCase alias for @ref set_auto_thread_id_setting(). */
     static void SetAutoThreadIDSetting(bool &&) noexcept;
+
+    /**
+     * @brief Enable/disable automatic date prefixing.
+     * @param boolean Boolean rvalue forwarded into the setting.
+     *
+     * @note Consider taking `bool` by value; `bool&&` is unusual for settings.
+     */
     static void set_auto_date_setting(bool &&) noexcept;
+
+    /** @brief PascalCase alias for @ref set_auto_date_setting(). */
     static void SetAutoDateSetting(bool &&) noexcept;
+
+    /**
+     * @brief Enable/disable automatic time prefixing.
+     * @param boolean Boolean rvalue forwarded into the setting.
+     *
+     * @note Consider taking `bool` by value; `bool&&` is unusual for settings.
+     */
     static void set_auto_time_setting(bool &&) noexcept;
+
+    /** @brief PascalCase alias for @ref set_auto_time_setting(). */
     static void SetAutoTimeSetting(bool &&) noexcept;
+
+    /**
+     * @brief Get current settings (by reference).
+     * @return Reference to internal settings object.
+     *
+     * @warning Returning a reference to internal state can be risky.
+     *          Modifying it bypasses internal synchronization unless the caller locks externally.
+     */
     static settings_s & get_settings() noexcept;
+
+    /** @brief PascalCase alias for @ref get_settings(). */
     static settings_s & GetSettings() noexcept;
+
+    /**
+     * @brief Get current info log directory path.
+     * @return View of internal path string.
+     *
+     * @warning Returned view refers to internal storage.
+     */
     static std::string_view get_log_path() noexcept;
+
+    /** @brief PascalCase alias for @ref get_log_path(). */
     static std::string_view GetLogPath() noexcept;
+
+    /**
+     * @brief Get current error log directory path.
+     * @return View of internal path string.
+     *
+     * @warning Returned view refers to internal storage.
+     */
     static std::string_view get_error_log_path() noexcept;
+
+    /** @brief PascalCase alias for @ref get_error_log_path(). */
     static std::string_view GetErrorLogPath() noexcept;
+
+    /**
+     * @brief Get current info log filename.
+     * @return View of internal filename string.
+     *
+     * @warning Returned view refers to internal storage.
+     */
     static std::string_view get_log_filename() noexcept;
+
+    /** @brief PascalCase alias for @ref get_log_filename(). */
     static std::string_view GetLogFilename() noexcept;
+
+    /**
+     * @brief Get current error log filename.
+     * @return View of internal filename string.
+     *
+     * @warning Returned view refers to internal storage.
+     */
     static std::string_view get_error_log_filename() noexcept;
+
+    /** @brief PascalCase alias for @ref get_error_log_filename(). */
     static std::string_view GetErrorLogFilename() noexcept;
+
+    /** @brief Get whether auto newline is enabled. */
     static bool get_auto_new_line_setting() noexcept;
+
+    /** @brief PascalCase alias for @ref get_auto_new_line_setting(). */
     static bool GetAutoNewLineSetting() noexcept;
+
+    /** @brief Get whether auto thread-id is enabled. */
     static bool get_auto_thread_id_setting() noexcept;
+
+    /** @brief PascalCase alias for @ref get_auto_thread_id_setting(). */
     static bool GetAutoThreadIDSetting() noexcept;
+
+    /** @brief Get whether auto date is enabled. */
     static bool get_auto_date_setting() noexcept;
+
+    /** @brief PascalCase alias for @ref get_auto_date_setting(). */
     static bool GetAutoDateSetting() noexcept;
+
+    /** @brief Get whether auto time is enabled. */
     static bool get_auto_time_setting() noexcept;
+
+    /** @brief PascalCase alias for @ref get_auto_time_setting(). */
     static bool GetAutoTimeSetting() noexcept;
+
+    /**
+     * @brief Log an info message (string view).
+     *
+     * Auto-initializes and auto-opens the info log file if needed.
+     *
+     * @param text Message to write.
+     * @param mode Per-call mode flags (optional).
+     * @return @ref error_code::NO_ERROR on success, otherwise an error code.
+     */
     static error_code log(std::string_view, mode=mode::none);
+
+    /**
+     * @brief Log an info message using stream-style variadic arguments.
+     *
+     * - If the last argument is a @ref mode, it is interpreted as per-call formatting flags.
+     * - Otherwise all args are appended to a line and written as info.
+     *
+     * @tparam Args Argument types.
+     * @param args Values to append.
+     * @return @ref error_code indicating success/failure.
+     */
     template<typename...Args> static error_code log(Args&&...);
+
+    /** @brief PascalCase alias for @ref log(std::string_view, mode). */
     static error_code Log(std::string_view, mode=mode::none);
+
+    /** @brief PascalCase alias for variadic @ref log(Args&&...). */
     template<typename...Args> static error_code Log(Args&&...);
+
+    /**
+     * @brief Log an error message (string view).
+     *
+     * Auto-initializes and auto-opens the error log file if needed.
+     *
+     * @param text Message to write.
+     * @param m Per-call mode flags (optional).
+     * @return @ref error_code::NO_ERROR on success, otherwise an error code.
+     */
     static error_code log_error(std::string_view, mode=mode::none);
+
+    /**
+     * @brief Log an error message using stream-style variadic arguments.
+     *
+     * - If the last argument is a @ref mode, it is interpreted as per-call formatting flags.
+     * - Otherwise all args are appended to a line and written as error.
+     *
+     * @tparam Args Argument types.
+     * @param args Values to append.
+     * @return @ref error_code indicating success/failure.
+     */
     template<typename...Args> static error_code log_error(Args&&...);
+
+    /** @brief PascalCase alias for @ref log_error(std::string_view, mode). */
     static error_code LogError(std::string_view, mode=mode::none);
+
+    /** @brief PascalCase alias for variadic @ref log_error(Args&&...). */
     template<typename...Args> static error_code LogError(Args&&...);
+
+    /**
+     * @brief Open both info and error log streams.
+     * @return @ref error_code::NO_ERROR on success, otherwise an error code.
+     */
     static error_code open();
+
+    /** @brief PascalCase alias for @ref open(). */
     static error_code Open();
+
+    /**
+     * @brief Open only the info log stream.
+     * @return @ref error_code::NO_ERROR on success, otherwise an error code.
+     */
     static error_code open_logger();
+
+    /** @brief PascalCase alias for @ref open_logger(). */
     static error_code OpenLogger();
+
+    /**
+     * @brief Open only the error log stream.
+     * @return @ref error_code::NO_ERROR on success, otherwise an error code.
+     */
     static error_code open_error_logger();
+
+    /** @brief PascalCase alias for @ref open_error_logger(). */
     static error_code OpenErrorLogger();
+
+    /**
+     * @brief Close both info and error log streams.
+     * @return @ref error_code::NO_ERROR on success, otherwise an error code.
+     */
     static error_code close();
+
+    /** @brief PascalCase alias for @ref close(). */
     static error_code Close();
+
+    /**
+     * @brief Close only the info log stream.
+     * @return @ref error_code::NO_ERROR on success, otherwise an error code.
+     */
     static error_code close_logger();
+
+    /** @brief PascalCase alias for @ref close_logger(). */
     static error_code CloseLogger();
+
+    /**
+     * @brief Close only the error log stream.
+     * @return @ref error_code::NO_ERROR on success, otherwise an error code.
+     */
     static error_code close_error_logger();
+
+    /** @brief PascalCase alias for @ref close_error_logger(). */
     static error_code CloseErrorLogger();
+
+
+    /**
+     * @brief Check whether EmkyLog has been initiated.
+     * @return True if initiated, otherwise false.
+     */
     static bool initiated() noexcept;
+
+    /** @brief PascalCase alias for @ref initiated(). */
     static bool Initiated() noexcept;
 
 private:
@@ -206,13 +523,29 @@ private:
             return flush(this->lvl, this->string, this->mode_);
         }
 
+        /** @brief Append a string_view. */
         line & operator << (const std::string_view s) {this->string.append(s); return *this;}
+
+        /** @brief Append a character. */
         line & operator << (const char ch) {this->string.push_back(ch); return *this;}
+
+        /** @brief Append a C-string as string_view. */
         line & operator << (const char * s) {return *this << std::string_view(s);}
+
+        /** @brief Append boolean as "true"/"false". */
         line & operator << (const bool b) {this->string += (b ? "true" : "false"); return *this;}
+
+        /** @brief Set per-line mode flags. */
         line & operator << (const emkylog::mode mode) {this->mode_ = mode; return *this;}
+
+        /** @brief Append a hashed thread id. */
         line & operator << (const std::thread::id tid) {return *this << std::hash<std::thread::id>{}(tid);}
 
+        /**
+         * @brief Append numeric values using std::to_chars.
+         * @tparam T Numeric type.
+         * @param v Value to append.
+         */
         template <typename T> requires (std::is_integral_v<std::remove_reference_t<T>> || std::is_floating_point_v<std::remove_reference_t<T>>)
         line & operator << (T v) {this->append_to_chars(v); return *this;}
 
@@ -220,6 +553,14 @@ private:
 
     struct stream {
         level lvl;
+
+
+        /**
+         * @brief Create a new line and append one value to it, returning the line for chaining.
+         * @tparam T Value type.
+         * @param v Value to append.
+         * @return A @ref line object for further `<<` chaining.
+         */
         template <typename T> line operator << (T && v) const {
             std::lock_guard lock (emkylog::mtx);
             line l(lvl);
@@ -235,7 +576,24 @@ private:
     template<typename Tuple, size_t... Is> static void stream_prefix(line&, Tuple&&, std::index_sequence<Is...>);
 
 public:
+    /**
+     * @brief Stream-style entry for info logging.
+     *
+     * Example:
+     * @code
+     * emkylog::loginfo << "Hello " << 123 << emkylog::mode::newline;
+     * @endcode
+     */
     static constexpr stream loginfo {level::info};
+
+    /**
+     * @brief Stream-style entry for error logging.
+     *
+     * Example:
+     * @code
+     * emkylog::logerror << "Oops: " << "failed" << emkylog::mode::newline;
+     * @endcode
+     */
     static constexpr stream logerror {level::error};
 
 private:
@@ -276,6 +634,20 @@ private:
     static settings_s settings;
 
 public:
+    /**
+     * @brief Create an observing wrapper around a callable.
+     *
+     * The returned object behaves like the original callable, but logs:
+     * - enter event
+     * - exit event + duration (ms)
+     * - exception event + duration (ms), then rethrows
+     *
+     * @tparam F Callable type.
+     * @param name Observer name for logs.
+     * @param F Callable to wrap.
+     * @param message Optional message shown in logs (default: "none").
+     * @return An observer wrapper callable.
+     */
     template <typename F> static constexpr auto observe(std::string_view, F&&, std::string_view="none");
 
 };

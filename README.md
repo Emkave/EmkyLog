@@ -27,7 +27,48 @@ It supports:
 
 ## Requirements
 
-- C++20+
+This code requires a conforming C++20 implementation with:
+* std::format
+* C++20 chrono time zones (std::chrono::zoned_time)
+* std::source_location
+* std::filesystem
+* std::to_chars for integers and floating-point types
+
+## Compilers supported
+
+- x86-64 clang 17.0.1+
+- x86-64 clang 17.0.1 (assertions)+
+- x86-64 clang (assertions trunk)
+- x86-64 gcc 13.1 (assertions)+
+- x86-64 gcc 13.1+
+- x86-64 icx 2023.0.0+
+- armv7-a clang 19.1.0+
+- armv8-a clang 17.0.1+
+- ARM gcc 13.1.0+
+- ARM64 gcc 13.1.0+
+- arm64 msvc v19.29 VS16.11+
+- x64 msvc v19.29 VS16.11+
+- x86 msvc v19.29 VS16.11+
+- HPPA gcc 14.2.0+
+- LoongArch64 clang 17.0.1+
+- loongarch64 gcc 13.0.1+
+- MinGW clang 16.0.2
+- MinGW gcc 13.1.0+
+- mips gcc 13.1.0+
+- mips64 gcc 13.1.0+
+- mips64 (el) gcc 13.1.0+
+- mipsel gcc 13.1.0+
+- power gcc 13.1.0+
+- power64 gcc 13.1.0+
+- power64le gcc 13.1.0+
+- RISC-V (32-bits) gcc 13.1.0+
+- RISC-V (64-bits) gcc 13.1.0+
+- RISC-V rv32gc clang 19.1.0+
+- RISC-V rv64gc clang 19.1.0+
+- s390 gcc 13.1.0+
+- SPARC gcc 13.1.0+
+- SPARC LEON gcc 13.1.0+
+- SPARC64 gcc 13.1.0+
 
 ---
 
@@ -57,4 +98,3 @@ So on first use it will attempt to create the `emkylog` directory.
 static error_code emkylog::init();
 static error_code emkylog::Init(); 
 ```
-Initializes directories and opens logging files.

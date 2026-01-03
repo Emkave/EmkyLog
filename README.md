@@ -299,6 +299,17 @@ Returns error_code::NO_ERROR on success.
 
 Note: auto-initializes and auto-opens the info log file if needed.
 
+Example:
+```cpp
+#include "EmkyLog.h"
+
+int main() {
+    emkylog::log("Hello World!", emkylog::mode::nonewline);
+    emkylog::Log("This line was printed without the newline.");
+
+    return 0;
+}
+```
 ---
 
 ```cpp
@@ -312,6 +323,17 @@ Returns error_code::NO_ERROR on success.
 Note: if the last argument is a mode, it is interpreted as a per-call formatting flag.
 Otherwise, all args are appended to a line and written as info.
 
+Example:
+```cpp
+#include "EmkyLog.h"
+
+int main() {
+    emkylog::log("Hello ", "World!", emkylog::mode::nonewline);
+    emkylog::Log("This line ", "was printed ", "without the newline.");
+
+    return 0;
+}
+```
 ---
 
 ```cpp
@@ -324,6 +346,17 @@ Returns error_code::NO_ERROR on success.
 
 Note: auto-initializes and auto-opens the error log file if needed
 
+Example:
+```cpp
+#include "EmkyLog.h"
+
+int main() {
+    emkylog::log_error("Hello World!", emkylog::mode::nonewline);
+    emkylog::LogError("This line was printed without the newline.");
+
+    return 0;
+}  
+```
 ---
 
 ```cpp
@@ -336,6 +369,18 @@ Returns error_code::NO_ERROR on success.
 
 Note: If the last argument is a emkylog::mode, it is interpreted per-call formatting flag.
 Otherwise, all args are appended to a line and written as error.
+
+Example:
+```cpp
+#include "EmkyLog.h"
+
+int main() {
+    emkylog::log_error("Hello ", "World!", emkylog::mode::nonewline);
+    emkylog::LogError("This line ", "was printed ", "without the newline.");
+
+    return 0;
+}
+```
 
 ---
 
@@ -407,7 +452,10 @@ Returns true if initiated, otherwise false.
 static constexpr stream loginfo {level::info};
 ```
 Stream-style entry for info logging.
-Example: ```emkylog::loginfo << "Hello " << 123 << emkylog::mode::newline;```
+Example: 
+```cpp
+emkylog::loginfo << "Hello " << 123 << emkylog::mode::newline;
+```
 
 ---
 
@@ -415,7 +463,10 @@ Example: ```emkylog::loginfo << "Hello " << 123 << emkylog::mode::newline;```
 static constexpr stream logerror {level::error};
 ```
 Stream-style entry for error logging.
-Example: ```emkylog::logerror << "Oops: " << "failed" << emkylog::mode::newline;```
+Example: 
+```cpp
+emkylog::logerror << "Oops: " << "failed" << emkylog::mode::newline;
+```
 
 ---
 
@@ -431,44 +482,20 @@ The returned object behaves like the original callable, but it logs:
 It takes F - callable to wrap, observer's name for logs, optional message to be shown in logs, otherwise "none" is used.
 Returns an observer wrapper callable.
 
----
-
+Example:
 ```cpp
+#include "EmkyLog.h"
+
+int f(int a, int b) {
+    return a+b;
+}
+
+auto F = emkylog::observe("sum", f);
+
+int main() {
+    F(1, 5);
+    
+    return 0;
+}
 ```
-
-
-
----
-
-```cpp
-```
-
-
-
----
-
-```cpp
-```
-
-
-
----
-
-```cpp
-```
-
-
-
----
-
-```cpp
-```
-
-
-
----
-
-```cpp
-```
-
 

@@ -143,7 +143,7 @@ public:
     static error_code Init();
 
     /**
-     * @brief Set all logger settings atomically.
+     * @brief Set all logger settings.
      * @param setting_s New settings.
      * @return @ref error_code::NO_ERROR on success.
      */
@@ -215,8 +215,6 @@ public:
     /**
      * @brief Enable/disable automatic newline behavior.
      * @param boolean Boolean rvalue forwarded into the setting.
-     *
-     * @note Consider taking `bool` by value; `bool&&` is unusual for settings.
      */
     static void set_auto_new_line_setting(bool &&) noexcept;
 
@@ -226,8 +224,6 @@ public:
     /**
      * @brief Enable/disable automatic thread-id prefixing.
      * @param boolean Boolean rvalue forwarded into the setting.
-     *
-     * @note Consider taking `bool` by value; `bool&&` is unusual for settings.
      */
     static void set_auto_thread_id_setting(bool &&) noexcept;
 
@@ -237,8 +233,6 @@ public:
     /**
      * @brief Enable/disable automatic date prefixing.
      * @param boolean Boolean rvalue forwarded into the setting.
-     *
-     * @note Consider taking `bool` by value; `bool&&` is unusual for settings.
      */
     static void set_auto_date_setting(bool &&) noexcept;
 
@@ -248,8 +242,6 @@ public:
     /**
      * @brief Enable/disable automatic time prefixing.
      * @param boolean Boolean rvalue forwarded into the setting.
-     *
-     * @note Consider taking `bool` by value; `bool&&` is unusual for settings.
      */
     static void set_auto_time_setting(bool &&) noexcept;
 
@@ -259,9 +251,6 @@ public:
     /**
      * @brief Get current settings (by reference).
      * @return Reference to internal settings object.
-     *
-     * @warning Returning a reference to internal state can be risky.
-     *          Modifying it bypasses internal synchronization unless the caller locks externally.
      */
     static settings_s & get_settings() noexcept;
 
@@ -271,8 +260,6 @@ public:
     /**
      * @brief Get current info log directory path.
      * @return View of internal path string.
-     *
-     * @warning Returned view refers to internal storage.
      */
     static std::string_view get_log_path() noexcept;
 
@@ -282,8 +269,6 @@ public:
     /**
      * @brief Get current error log directory path.
      * @return View of internal path string.
-     *
-     * @warning Returned view refers to internal storage.
      */
     static std::string_view get_error_log_path() noexcept;
 
@@ -293,8 +278,6 @@ public:
     /**
      * @brief Get current info log filename.
      * @return View of internal filename string.
-     *
-     * @warning Returned view refers to internal storage.
      */
     static std::string_view get_log_filename() noexcept;
 
@@ -304,8 +287,6 @@ public:
     /**
      * @brief Get current error log filename.
      * @return View of internal filename string.
-     *
-     * @warning Returned view refers to internal storage.
      */
     static std::string_view get_error_log_filename() noexcept;
 
